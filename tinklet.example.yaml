@@ -1,5 +1,6 @@
 ---
 identifier: "123456"
+tinkServer: "192.168.1.214:42113"
 registry:
   name: "192.168.1.214"
   user: "admin"
