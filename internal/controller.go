@@ -41,9 +41,9 @@ func RunController(ctx context.Context, log logr.Logger, config Configuration) e
 
 		// the first workflowID found and its associated actions are returned.
 		// workflows will be filtered by: 1. mac address that do not mac the specified 2. workflows that are complete
-		workflowID, actions, err := getActionsList(ctx, workflowClient, filterWorkflowsByMac("00:50:56:25:11:0e"), filterByComplete())
+		workflowID, actions, err := getActionsList(ctx, workflowClient, filterWorkflowsByMac(config.Identifier), filterByComplete())
 		if err != nil {
-			log.V(0).Info("no action list retrieved", "msg", err.Error())
+			log.V(0).Info("no action list retrieved", "msg", err.Error(), "workerID", config.Identifier)
 			continue
 		}
 		log.V(0).Info("found a workflow to execute", "workflow", workflowID, "actions", &actions)

@@ -1,5 +1,5 @@
 ---
-identifier: "123456"
+identifier: "00:50:56:25:11:0e"
 tinkServer: "192.168.1.214:42113"
 registry:
   name: "192.168.1.214"

@@ -4,7 +4,7 @@ package internal
 type Configuration struct {
 	LogLevel   string `flag:"loglevel"`
 	Config     string
-	Identifier string
+	Identifier string `valid:"required"`
 	TinkServer string `flag:"tinkServer" yaml:"tinkServer" valid:"required"`
 	Registry   struct {
 		Name string
