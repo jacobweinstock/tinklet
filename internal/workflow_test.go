@@ -12,6 +12,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	"github.com/tinkerbell/tink/protos/workflow"
 	tw "github.com/tinkerbell/tink/protos/workflow"
 	"google.golang.org/grpc"
 )
@@ -29,12 +30,12 @@ func TestGetWorkflowsOfficial(t *testing.T) {
 		err               error
 		ctxTimeout        time.Duration
 		mock              *mocker
-		filterByFunc      func([]*tw.Workflow) []*tw.Workflow
+		filterByFunc      func(tw.WorkflowServiceClient, []*tw.Workflow) []*tw.Workflow
 	}{
 		"success":            {expectedWorkflows: []*tw.Workflow{{Id: "1"}, {Id: "2"}, {Id: "3"}}, mock: &mocker{numWorkflowsToMock: 3}},
 		"fail ListWorkflows": {err: errors.New("error getting workflows: failed"), mock: &mocker{failListWorkflows: true}},
 		"fail recv":          {err: &multierror.Error{Errors: []error{errors.New("failed")}}, mock: &mocker{failListWorkflowsRecvFunc: true, numWorkflowsToMock: 1}},
-		"success with filter": {expectedWorkflows: []*tw.Workflow{{Id: "1"}, {Id: "2"}}, mock: &mocker{numWorkflowsToMock: 3}, filterByFunc: func(workflows []*tw.Workflow) []*tw.Workflow {
+		"success with filter": {expectedWorkflows: []*tw.Workflow{{Id: "1"}, {Id: "2"}}, mock: &mocker{numWorkflowsToMock: 3}, filterByFunc: func(workflowClient tw.WorkflowServiceClient, workflows []*tw.Workflow) []*tw.Workflow {
 			var filteredWorkflows []*tw.Workflow
 			for _, elem := range workflows {
 				if elem.Id != "3" {
@@ -53,9 +54,9 @@ func TestGetWorkflowsOfficial(t *testing.T) {
 			var workflows []*tw.Workflow
 			var err error
 			if tc.filterByFunc != nil {
-				workflows, err = GetAllWorkflows(ctx, tc.mock.getMockedWorkflowServiceClient(), tc.filterByFunc)
+				workflows, err = getAllWorkflows(ctx, tc.mock.getMockedWorkflowServiceClient(), tc.filterByFunc)
 			} else {
-				workflows, err = GetAllWorkflows(ctx, tc.mock.getMockedWorkflowServiceClient())
+				workflows, err = getAllWorkflows(ctx, tc.mock.getMockedWorkflowServiceClient())
 			}
 			if err != nil {
 				if tc.err != nil {
@@ -80,7 +81,7 @@ func TestGetWorkflows(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	filterByMac := func(workflows []*tw.Workflow) []*tw.Workflow {
+	filterByMac := func(workflowClient workflow.WorkflowServiceClient, workflows []*tw.Workflow) []*tw.Workflow {
 		var filteredWorkflows []*tw.Workflow
 		for _, elem := range workflows {
 			if strings.Contains(elem.Hardware, "00:50:56:25:11:0e") {
@@ -90,7 +91,7 @@ func TestGetWorkflows(t *testing.T) {
 		return filteredWorkflows
 	}
 
-	filterByState := func(workflows []*tw.Workflow) []*tw.Workflow {
+	filterByState := func(workflowClient workflow.WorkflowServiceClient, workflows []*tw.Workflow) []*tw.Workflow {
 		var filteredWorkflows []*tw.Workflow
 		for _, elem := range workflows {
 			if elem.State != tw.State_STATE_SUCCESS && elem.State != tw.State_STATE_TIMEOUT {
@@ -100,10 +101,10 @@ func TestGetWorkflows(t *testing.T) {
 		return filteredWorkflows
 	}
 
-	var filters []func([]*tw.Workflow) []*tw.Workflow
+	var filters []func(tw.WorkflowServiceClient, []*tw.Workflow) []*tw.Workflow
 	filters = append(filters, filterByMac, filterByState)
 	client := tw.NewWorkflowServiceClient(conn)
-	workflows, err := GetAllWorkflows(context.Background(), client, filters...)
+	workflows, err := getAllWorkflows(context.Background(), client, filters...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,4 +152,21 @@ func (m *mocker) getMockedWorkflowServiceClient() *tw.WorkflowServiceClientMock 
 	}
 
 	return &workflowSvcClient
+}
+
+func TestReporting(t *testing.T) {
+	t.Skip()
+	conn, err := grpc.Dial("192.168.1.214:42113", grpc.WithInsecure())
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflowID, actions, err := getActionsList(context.Background(), tw.NewWorkflowServiceClient(conn))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(workflowID)
+	t.Log(actions)
+
+	t.Fatal()
 }

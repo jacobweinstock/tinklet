@@ -13,7 +13,7 @@ func TestActionToDockerConfig(t *testing.T) {
 	withTty := func(tty bool) containerConfigOption {
 		return func(args *container.Config) { args.Tty = tty }
 	}
-	expected := container.Config{
+	expected := &container.Config{
 		AttachStdout: true,
 		AttachStderr: true,
 		Tty:          false,
@@ -26,7 +26,7 @@ func TestActionToDockerConfig(t *testing.T) {
 		Command:     []string{"/bin/sh"},
 		Environment: []string{"test=one"},
 	}
-	got := actionToDockerContainerConfig(context.Background(), action, withTty(false))
+	got := actionToDockerContainerConfig(context.Background(), action, withTty(false)) // nolint
 	if diff := cmp.Diff(got, expected); diff != "" {
 		t.Fatal(diff)
 	}
@@ -36,7 +36,7 @@ func TestActionToDockerHostConfig(t *testing.T) {
 	withPid := func(pid string) containerHostOption {
 		return func(args *container.HostConfig) { args.PidMode = container.PidMode(pid) }
 	}
-	expected := container.HostConfig{
+	expected := &container.HostConfig{
 		Binds: []string{
 			"/dev:/dev",
 			"/dev/console:/dev/console",
@@ -56,7 +56,7 @@ func TestActionToDockerHostConfig(t *testing.T) {
 		},
 		Pid: "host",
 	}
-	got := actionToDockerHostConfig(context.Background(), action, withPid("custom"))
+	got := actionToDockerHostConfig(context.Background(), action, withPid("custom")) // nolint
 	if diff := cmp.Diff(got, expected); diff != "" {
 		t.Fatal(diff)
 	}
