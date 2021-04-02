@@ -6,23 +6,29 @@ import (
 	"github.com/jacobweinstock/goconfig"
 	"github.com/jacobweinstock/tinklet/internal"
 	"github.com/packethost/pkg/log/logr"
+	"github.com/philippgille/gokv/freecache"
 )
 
+// Execute sets up the config and logging, then run the tinklet control loop
 func Execute(ctx context.Context) error {
-	// setup config and logging, then run the tinklet control loop
+	// set default config values
 	config := internal.Configuration{
 		LogLevel: "info",
 	}
 	cfgParser := goconfig.NewParser(
 		goconfig.WithPrefix("TINKLET"),
-		goconfig.WithFile("tinklet.example.yaml"),
+		goconfig.WithFile("tinklet.yaml"),
 	)
-	cfgParser.Parse(&config)
+	err := cfgParser.Parse(&config)
+	if err != nil {
+		return err
+	}
 
 	log, _, _ := logr.NewPacketLogr(
 		logr.WithServiceName("tinklet"),
 		logr.WithLogLevel(config.LogLevel),
 	)
 	log.V(0).Info("starting tinklet control loop")
-	return internal.RunControlLoop(ctx, log, config)
+
+	return internal.RunControlLoop(ctx, log, config, freecache.NewStore(freecache.DefaultOptions))
 }

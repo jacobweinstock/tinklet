@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -33,6 +34,8 @@ func main() {
 	}()
 
 	if err := cmd.Execute(ctx); err != nil {
+		fmt.Printf(`{"level":"error","msg":"execution failed","msg":"%v"}`, err)
+		fmt.Println()
 		exitCode = 1
 	}
 }
