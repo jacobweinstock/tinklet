@@ -49,8 +49,8 @@ func getAllWorkflows(ctx context.Context, client workflow.WorkflowServiceClient,
 }
 
 // getActionsList will get all workflows, filter and return the first workflow's action list
-func getActionsList(ctx context.Context, workflowClient workflow.WorkflowServiceClient, filterByFunc ...func(workflow.WorkflowServiceClient, []*workflow.Workflow) []*workflow.Workflow) (workflowID string, actions []*workflow.WorkflowAction, err error) {
-	workflows, err := getAllWorkflows(ctx, workflowClient, filterByFunc...)
+func getActionsList(ctx context.Context, workflowClient workflow.WorkflowServiceClient, filterActionsByFunc func([]*workflow.WorkflowAction) []*workflow.WorkflowAction, filterWorkflowsByFunc ...func(workflow.WorkflowServiceClient, []*workflow.Workflow) []*workflow.Workflow) (workflowID string, actions []*workflow.WorkflowAction, err error) {
+	workflows, err := getAllWorkflows(ctx, workflowClient, filterWorkflowsByFunc...)
 	if err != nil {
 		return "", nil, errors.WithMessage(err, "getAllWorkflows failed")
 	}
@@ -64,8 +64,14 @@ func getActionsList(ctx context.Context, workflowClient workflow.WorkflowService
 	if err != nil {
 		return "", nil, errors.WithMessage(err, "GetWorkflowActions failed")
 	}
+	var acts []*workflow.WorkflowAction
+	if filterActionsByFunc != nil {
+		acts = filterActionsByFunc(resp.GetActionList())
+	} else {
+		acts = resp.GetActionList()
+	}
 
-	return workflowID, resp.GetActionList(), nil
+	return workflowID, acts, nil
 }
 
 // filterWorkflowsByMac will return only workflows whose hardware devices contains the given mac
@@ -78,6 +84,19 @@ func filterWorkflowsByMac(mac string) func(workflowClient workflow.WorkflowServi
 			}
 		}
 		return filteredWorkflows
+	}
+}
+
+// filterWorkflowsByMac will return only workflows whose hardware devices contains the given mac
+func filterActionsByWorkerID(id string) func([]*workflow.WorkflowAction) []*workflow.WorkflowAction {
+	return func(actions []*workflow.WorkflowAction) []*workflow.WorkflowAction {
+		var filteredActions []*workflow.WorkflowAction
+		for _, elem := range actions {
+			if elem.GetWorkerId() == id {
+				filteredActions = append(filteredActions, elem)
+			}
+		}
+		return filteredActions
 	}
 }
 

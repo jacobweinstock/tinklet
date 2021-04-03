@@ -9,6 +9,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	"github.com/tinkerbell/tink/protos/hardware"
 	"github.com/tinkerbell/tink/protos/workflow"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -49,10 +50,19 @@ func RunController(ctx context.Context, log logr.Logger, config Configuration) e
 		}
 		// setup the workflow rpc service client
 		workflowClient := workflow.NewWorkflowServiceClient(conn)
+		// setup the hardware rpc service client
+		hardwareClient := hardware.NewHardwareServiceClient(conn)
+
+		// get the worker_id from tink server
+		workerID, err := getHardwareID(ctx, hardwareClient, config.Identifier)
+		if err != nil {
+			log.V(0).Error(err, "error getting workerID from tink server")
+			continue
+		}
 
 		// the first workflowID found and its associated actions are returned.
 		// workflows will be filtered by: 1. mac address that do not mac the specified 2. workflows that are complete
-		workflowID, actions, err := getActionsList(ctx, workflowClient, filterWorkflowsByMac(config.Identifier), filterByComplete())
+		workflowID, actions, err := getActionsList(ctx, workflowClient, filterActionsByWorkerID(workerID), filterWorkflowsByMac(config.Identifier), filterByComplete())
 		if err != nil {
 			//log.V(0).Info("no action list retrieved", "msg", err.Error(), "workerID", config.Identifier)
 			continue

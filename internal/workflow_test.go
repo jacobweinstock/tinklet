@@ -160,7 +160,7 @@ func TestReporting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflowID, actions, err := getActionsList(context.Background(), tw.NewWorkflowServiceClient(conn))
+	workflowID, actions, err := getActionsList(context.Background(), tw.NewWorkflowServiceClient(conn), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
