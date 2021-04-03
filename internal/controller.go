@@ -8,10 +8,21 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	"github.com/tinkerbell/tink/protos/workflow"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+func reportActionStatusController(ctx context.Context, log logr.Logger, wg *sync.WaitGroup, jobChan <-chan func() error) {
+	for job := range jobChan {
+		err := job()
+		if err != nil {
+			log.V(0).Error(err, "reporting action status failed")
+		}
+		wg.Done()
+	}
+}
 
 // RunController runs the tinklet control loop that watches for workflows to executes
 func RunController(ctx context.Context, log logr.Logger, config Configuration) error {
@@ -43,13 +54,13 @@ func RunController(ctx context.Context, log logr.Logger, config Configuration) e
 		// workflows will be filtered by: 1. mac address that do not mac the specified 2. workflows that are complete
 		workflowID, actions, err := getActionsList(ctx, workflowClient, filterWorkflowsByMac(config.Identifier), filterByComplete())
 		if err != nil {
-			log.V(0).Info("no action list retrieved", "msg", err.Error(), "workerID", config.Identifier)
+			//log.V(0).Info("no action list retrieved", "msg", err.Error(), "workerID", config.Identifier)
 			continue
 		}
 		log.V(0).Info("found a workflow to execute", "workflow", workflowID, "actions", &actions)
 
 		// pull the remote state locally for use in evaluation of actions to execute
-		state, err := getWorkflowState(ctx, workflowID, workflowClient)
+		state, err := workflowClient.GetWorkflowContext(ctx, &workflow.GetRequest{Id: workflowID})
 		if err != nil {
 			log.V(0).Error(err, "error getting workflow state")
 			continue
@@ -57,6 +68,9 @@ func RunController(ctx context.Context, log logr.Logger, config Configuration) e
 
 		// create a WaitGroup for when calling Tink server with reportActionStatus'
 		var reportActionStatusWG sync.WaitGroup
+		// start the report action status controller
+		jobChan := make(chan func() error)
+		go reportActionStatusController(ctx, log, &reportActionStatusWG, jobChan)
 		// TODO: global timeout should go here and be checked after each action is executed
 
 		for index := range actions {
@@ -82,16 +96,19 @@ func RunController(ctx context.Context, log logr.Logger, config Configuration) e
 			state.CurrentActionState = workflow.State_STATE_RUNNING
 			reportActionStatusWG.Add(1)
 			// send status report to tink server that we're starting
-			go sendReportActionStatus(ctx, &reportActionStatusWG, workflowClient.ReportActionStatus, &workflow.WorkflowActionStatus{
-				WorkflowId:   workflowID,
-				TaskName:     actions[index].TaskName,
-				ActionName:   actions[index].Name,
-				ActionStatus: workflow.State_STATE_RUNNING,
-				Seconds:      0,
-				Message:      "starting execution",
-				CreatedAt:    &timestamppb.Timestamp{},
-				WorkerId:     actions[index].WorkerId,
-			})
+			jobChan <- func() error {
+				_, err := workflowClient.ReportActionStatus(ctx, &workflow.WorkflowActionStatus{
+					WorkflowId:   workflowID,
+					TaskName:     actions[index].TaskName,
+					ActionName:   actions[index].Name,
+					ActionStatus: workflow.State_STATE_RUNNING,
+					Seconds:      0,
+					Message:      "starting execution",
+					CreatedAt:    &timestamppb.Timestamp{},
+					WorkerId:     actions[index].WorkerId,
+				})
+				return err
+			}
 
 			actionFailed := false
 			actStatus := workflow.State_STATE_SUCCESS
@@ -100,7 +117,7 @@ func RunController(ctx context.Context, log logr.Logger, config Configuration) e
 			if err != nil {
 				log.V(0).Error(err, "action completed with an error", "action", &actions[index])
 				actionFailed = true
-				switch err.(type) {
+				switch errors.Cause(err).(type) {
 				case *timeoutError:
 					actStatus = workflow.State_STATE_TIMEOUT
 				case *actionFailedError:
@@ -112,16 +129,19 @@ func RunController(ctx context.Context, log logr.Logger, config Configuration) e
 			state.CurrentActionState = actStatus
 			reportActionStatusWG.Add(1)
 			// send status report that we've finished
-			go sendReportActionStatus(ctx, &reportActionStatusWG, workflowClient.ReportActionStatus, &workflow.WorkflowActionStatus{
-				WorkflowId:   workflowID,
-				TaskName:     actions[index].TaskName,
-				ActionName:   actions[index].Name,
-				ActionStatus: actStatus,
-				Seconds:      0,
-				Message:      "action complete",
-				CreatedAt:    &timestamppb.Timestamp{},
-				WorkerId:     actions[index].WorkerId,
-			})
+			jobChan <- func() error {
+				_, err := workflowClient.ReportActionStatus(ctx, &workflow.WorkflowActionStatus{
+					WorkflowId:   workflowID,
+					TaskName:     actions[index].TaskName,
+					ActionName:   actions[index].Name,
+					ActionStatus: actStatus,
+					Seconds:      0,
+					Message:      "action complete",
+					CreatedAt:    &timestamppb.Timestamp{},
+					WorkerId:     actions[index].WorkerId,
+				})
+				return err
+			}
 
 			// set the local state current action index
 			if index+1 > len(actions) {
@@ -137,6 +157,7 @@ func RunController(ctx context.Context, log logr.Logger, config Configuration) e
 			log.V(0).Info("success", "action", actions[index].Name)
 		}
 		// wait until all ReportActionStatus are sent or TODO: timeout reached
+		close(jobChan)
 		reportActionStatusWG.Wait()
 	}
 }

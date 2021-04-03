@@ -17,8 +17,9 @@ type actionFailedError struct {
 	stdout   string
 	exitCode int
 	details  string
+	msg      string
 }
 
 func (a *actionFailedError) Error() string {
-	return fmt.Sprintf("action failed; exit code: %v; details: %v; stdout: %v", a.exitCode, a.details, a.stdout)
+	return fmt.Sprintf("msg: %v; exit code: %v; details: %v; stdout: %v", a.msg, a.exitCode, a.details, a.stdout)
 }

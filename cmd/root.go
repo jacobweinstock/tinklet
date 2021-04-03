@@ -27,7 +27,7 @@ func Execute(ctx context.Context) error {
 		logr.WithServiceName("tinklet"),
 		logr.WithLogLevel(config.LogLevel),
 	)
-	log.V(0).Info("starting tinklet control loop")
+	log.V(0).Info("tinklet started", "tink_server", config.TinkServer, "worker_id", config.Identifier, "container_registry", config.Registry.Name)
 
 	return internal.RunController(ctx, log, config)
 }

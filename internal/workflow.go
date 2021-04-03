@@ -4,13 +4,11 @@ import (
 	"context"
 	"io"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/tinkerbell/tink/protos/workflow"
-	"google.golang.org/grpc"
 )
 
 // getAllWorkflows job is to talk with tink server and retrieve all workflows.
@@ -48,10 +46,6 @@ func getAllWorkflows(ctx context.Context, client workflow.WorkflowServiceClient,
 		}
 	}
 	return wks, nil
-}
-
-func getWorkflowState(ctx context.Context, workflowID string, workflowClient workflow.WorkflowServiceClient) (*workflow.WorkflowContext, error) {
-	return workflowClient.GetWorkflowContext(ctx, &workflow.GetRequest{Id: workflowID})
 }
 
 // getActionsList will get all workflows, filter and return the first workflow's action list
@@ -94,7 +88,7 @@ func filterByComplete() func(workflowClient workflow.WorkflowServiceClient, work
 		defer cancel()
 		var filteredWorkflows []*workflow.Workflow
 		for _, elem := range workflows {
-			state, err := getWorkflowState(ctx, elem.Id, workflowClient)
+			state, err := workflowClient.GetWorkflowContext(ctx, &workflow.GetRequest{Id: elem.Id})
 			if err != nil {
 				continue
 			}
@@ -105,11 +99,4 @@ func filterByComplete() func(workflowClient workflow.WorkflowServiceClient, work
 		}
 		return filteredWorkflows
 	}
-}
-
-// sendReportActionStatus to tink server, must be used with a waitGroup and normally called with `go sendReportActionStatus()`
-func sendReportActionStatus(ctx context.Context, wg *sync.WaitGroup, status func(ctx context.Context, in *workflow.WorkflowActionStatus, opts ...grpc.CallOption) (*workflow.Empty, error), in *workflow.WorkflowActionStatus, opts ...grpc.CallOption) {
-	defer wg.Done()
-	// TODO: handle error. log maybe?
-	_, _ = status(ctx, in, opts...)
 }
