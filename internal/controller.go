@@ -175,8 +175,8 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 			log.V(0).Info("success", "action", action.Name)
 
 		}
-		// close the reportActionStatusChan
+		// as each workflow gets its own reportActionStatusChan, we need to close this reportActionStatusChan now that the workflow is complete
 		close(reportActionStatusChan)
-		log.V(0).Info("workflow complete", "workflow_id", workflowID)
+		log.V(0).Info("workflow complete", "workflow_id", workflowID, "success", "TODO: set workflow success value")
 	}
 }

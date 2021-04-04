@@ -118,7 +118,9 @@ func actionExecutionFlow(ctx context.Context, log logr.Logger, dockerClient *cli
 		ctx,
 		log,
 		dockerClient,
-		strings.ReplaceAll(action.Name, " ", "-"),
+		// spaces in a container name are not valid,
+		// we also add a timestamp so the container name is always unique.
+		fmt.Sprintf("%v-%v", strings.ReplaceAll(action.Name, " ", "-"), time.Now().UnixNano()),
 		actionToDockerContainerConfig(ctx, action), // nolint
 		actionToDockerHostConfig(ctx, action),      // nolint
 	)
