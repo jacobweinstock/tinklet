@@ -20,7 +20,7 @@ import (
 
 // pullImage is what you would expect from a `docker pull` cli command
 // pulls an image from a remote registry
-func pullImage(ctx context.Context, cli *client.Client, image string, pullOpts types.ImagePullOptions) error {
+func pullImage(ctx context.Context, cli client.ImageAPIClient, image string, pullOpts types.ImagePullOptions) error {
 	out, err := cli.ImagePull(ctx, image, pullOpts)
 	if err != nil {
 		return errors.Wrapf(err, "error pulling image: %v", image)

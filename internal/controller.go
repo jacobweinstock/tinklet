@@ -12,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/tinkerbell/tink/protos/hardware"
 	"github.com/tinkerbell/tink/protos/workflow"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -48,7 +47,7 @@ func ReportActionStatusController(ctx context.Context, log logr.Logger, wg *sync
 }
 
 // WorkflowActionController runs the tinklet control loop that watches for workflows to executes
-func WorkflowActionController(ctx context.Context, log logr.Logger, config Configuration, dockerClient *client.Client, conn *grpc.ClientConn) error {
+func WorkflowActionController(ctx context.Context, log logr.Logger, config Configuration, dockerClient *client.Client, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -57,11 +56,6 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 		default:
 		}
 		time.Sleep(3 * time.Second)
-
-		// setup the workflow rpc service client
-		workflowClient := workflow.NewWorkflowServiceClient(conn)
-		// setup the hardware rpc service client
-		hardwareClient := hardware.NewHardwareServiceClient(conn)
 
 		// get the worker_id from tink server
 		workerID, err := getHardwareID(ctx, hardwareClient, config.Identifier)
@@ -108,6 +102,8 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 			}
 
 			// send status report to tink server that we're starting. in a goroutine so we dont block action executions.
+			// this is a design decision to prioritize executing actions over whether the report action status call is success or not.
+			// this incurs one trade off of having report action status calls possibly failing while actions succeed.
 			reportActionStatusWG.Add(1)
 			go func() {
 				reportActionStatusChan <- func() error {

@@ -8,6 +8,8 @@ import (
 	"github.com/jacobweinstock/goconfig"
 	"github.com/jacobweinstock/tinklet/internal"
 	"github.com/packethost/pkg/log/logr"
+	"github.com/tinkerbell/tink/protos/hardware"
+	"github.com/tinkerbell/tink/protos/workflow"
 	"google.golang.org/grpc"
 )
 
@@ -40,20 +42,31 @@ func Execute(ctx context.Context) error {
 	for {
 		time.Sleep(time.Second * 3)
 		// setup local container runtime client
-		dockerClient, err = client.NewClientWithOpts()
-		if err != nil {
-			log.V(0).Error(err, "error creating docker client")
-			continue
+		if dockerClient == nil {
+			dockerClient, err = client.NewClientWithOpts()
+			if err != nil {
+				log.V(0).Error(err, "error creating docker client")
+				continue
+			}
 		}
+
 		// setup tink server grpc client
-		conn, err = grpc.Dial(config.TinkServer, grpc.WithInsecure())
-		if err != nil {
-			log.V(0).Error(err, "error connecting to tink server")
-			continue
+		if conn == nil {
+			conn, err = grpc.Dial(config.TinkServer, grpc.WithInsecure())
+			if err != nil {
+				log.V(0).Error(err, "error connecting to tink server")
+				continue
+			}
 		}
+
 		break
 	}
 
+	// setup the workflow rpc service client
+	workflowClient := workflow.NewWorkflowServiceClient(conn)
+	// setup the hardware rpc service client
+	hardwareClient := hardware.NewHardwareServiceClient(conn)
+
 	log.V(0).Info("workflow action controller started")
-	return internal.WorkflowActionController(ctx, log, config, dockerClient, conn)
+	return internal.WorkflowActionController(ctx, log, config, dockerClient, workflowClient, hardwareClient)
 }
