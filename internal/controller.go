@@ -17,7 +17,7 @@ import (
 )
 
 // ReportActionStatusController handles sending action status reports to tink server.
-// the
+// channel is a FIFO queue so we dont lose order
 func ReportActionStatusController(ctx context.Context, log logr.Logger, wg *sync.WaitGroup, jobChan chan func() error) {
 	for job := range jobChan {
 		err := job()
@@ -92,53 +92,47 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 		go ReportActionStatusController(ctx, log, &reportActionStatusWG, reportActionStatusChan)
 		log.V(0).Info(fmt.Sprintf("workflow %v report action status controller started", workflowID))
 		// TODO: global timeout should go here and be checked after each action is executed
-		for index := range actions {
-			// TODO: make sure we only run actions that whose worker is equal to our mac address.
-			// not currently possible as tink server doesnt store a map of worker_id to device address
-
+		for index, action := range actions {
 			// if action is not complete, run it.
 			// an action is not complete if the index is less than or equal to the states current action index
 			// we check the inverse of that and continue if true
 			// what if the action is running? run it again?
 			if index > int(state.GetCurrentActionIndex()) {
-				log.V(0).Info("action complete, moving on to the next", "action", actions[index].Name, "local index", index, "state index", state.GetCurrentActionIndex())
+				log.V(0).Info("action complete, moving on to the next", "action", action.Name, "local index", index, "state index", state.GetCurrentActionIndex())
 				continue
 			}
 			// what if the action is running? wait for it? why is it running and this instance of the tinklet doesnt know about it?
 			// check if its running locally or not, run it if it is not?
 			if state.CurrentActionState == workflow.State_STATE_RUNNING {
-				log.V(0).Info("action state reports this action as running, this case is not handled well, tinklet is going to run it regardless", "action", actions[index].Name)
+				log.V(0).Info("action state reports this action as running, this case is not handled well, tinklet is going to run it regardless", "action", action.Name)
 			}
 
-			// update the local state
-			state.CurrentAction = actions[index].Name
-			state.CurrentActionState = workflow.State_STATE_RUNNING
 			// send status report to tink server that we're starting. in a goroutine so we dont block action executions.
 			reportActionStatusWG.Add(1)
 			go func() {
 				reportActionStatusChan <- func() error {
 					_, err := workflowClient.ReportActionStatus(ctx, &workflow.WorkflowActionStatus{
 						WorkflowId:   workflowID,
-						TaskName:     actions[index].TaskName,
-						ActionName:   actions[index].Name,
+						TaskName:     action.TaskName,
+						ActionName:   action.Name,
 						ActionStatus: workflow.State_STATE_RUNNING,
 						Seconds:      0,
 						Message:      "starting execution",
 						CreatedAt:    &timestamppb.Timestamp{},
-						WorkerId:     actions[index].WorkerId,
+						WorkerId:     action.WorkerId,
 					})
 					return err
 				}
 			}()
 
+			log.V(0).Info("executing action", "action", &action)
+			start := time.Now()
+			err = actionExecutionFlow(ctx, log, dockerClient, *action, types.ImagePullOptions{}, workflowID) // nolint
+			elapsed := time.Since(start)
 			actionFailed := false
 			actStatus := workflow.State_STATE_SUCCESS
-			log.V(0).Info("executing action", "action", &actions[index])
-			start := time.Now()
-			err = actionExecutionFlow(ctx, log, dockerClient, *actions[index], types.ImagePullOptions{}, workflowID) // nolint
-			elapsed := time.Since(start)
 			if err != nil {
-				log.V(0).Error(err, "action completed with an error", "action", &actions[index])
+				log.V(0).Error(err, "action completed with an error", "action", &action)
 				actionFailed = true
 				switch errors.Cause(err).(type) {
 				case *timeoutError:
@@ -156,31 +150,30 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 				reportActionStatusChan <- func() error {
 					_, err := workflowClient.ReportActionStatus(ctx, &workflow.WorkflowActionStatus{
 						WorkflowId:   workflowID,
-						TaskName:     actions[index].TaskName,
-						ActionName:   actions[index].Name,
+						TaskName:     action.TaskName,
+						ActionName:   action.Name,
 						ActionStatus: actStatus,
 						Seconds:      int64(elapsed.Seconds()),
 						Message:      "action complete",
 						CreatedAt:    &timestamppb.Timestamp{},
-						WorkerId:     actions[index].WorkerId,
+						WorkerId:     action.WorkerId,
 					})
 					return err
 				}
 			}()
 
-			// set the local state current action index
-			if index+1 > len(actions) {
-				state.CurrentActionIndex = int64(index)
-			} else {
-				state.CurrentActionIndex = int64(index + 1)
-			}
+			// increment the local state current action index to the next value, why do i need to increment the state current action index here?
+			state.CurrentActionIndex = int64(index + 1)
+			// update the local state
+			state.CurrentAction = action.Name
 
+			reportActionStatusWG.Wait()
 			if actionFailed {
-				log.V(0).Info("failure", "action", actions[index].Name)
+				log.V(0).Info("failure", "action", action.Name)
 				break
 			}
-			log.V(0).Info("success", "action", actions[index].Name)
-			reportActionStatusWG.Wait()
+			log.V(0).Info("success", "action", action.Name)
+
 		}
 		// close the reportActionStatusChan
 		close(reportActionStatusChan)
