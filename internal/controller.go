@@ -48,6 +48,7 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 			log.V(0).Error(err, "error getting workerID from tink server")
 			continue
 		}
+		log = log.WithValues("workerID", workerID)
 
 		// the first workflowID found and its associated actions are returned.
 		// workflows will be filtered by: 1. mac address that do not mac the specified 2. workflows that are complete
@@ -60,7 +61,8 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 			//log.V(0).Info("no action list retrieved", "msg", err.Error(), "workerID", config.Identifier)
 			continue
 		}
-		log.V(0).Info("found a workflow to execute", "workflow", workflowID, "actions", &actions)
+		log = log.WithValues("workflowID", workflowID)
+		log.V(0).Info("found a workflow to execute", "actions", &actions)
 
 		// pull the remote state locally for use in evaluation of actions to execute
 		// TODO what happens here when there are multiple tasks in a workflow? do we need to check the workerID?
@@ -73,21 +75,22 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 		reportActionStatusChan := make(chan func() error)
 		var reportActionStatusWG sync.WaitGroup
 		go ReportActionStatusController(ctx, log, &reportActionStatusWG, reportActionStatusChan)
-		log.V(0).Info(fmt.Sprintf("report action status controller for workflow: %v started", workflowID))
+		log.V(0).Info("report action status controller started")
 		// TODO: global timeout should go here and be checked after each action is executed
 		for index, action := range actions {
+			actionLog := log.WithValues("action", &action)
 			// if action is not complete, run it.
 			// an action is not complete if the index is less than or equal to the states current action index
 			// we check the inverse of that and continue if true
 			// what if the action is running? run it again?
 			if index > int(state.GetCurrentActionIndex()) {
-				log.V(0).Info("action complete, moving on to the next", "action", action.Name, "local index", index, "state index", state.GetCurrentActionIndex())
+				actionLog.V(0).Info("action complete, moving on to the next", "local index", index, "state index", state.GetCurrentActionIndex())
 				continue
 			}
 			// what if the action is running? wait for it? why is it running and this instance of the tinklet doesnt know about it?
 			// check if its running locally or not, run it if it is not?
 			if state.CurrentActionState == workflow.State_STATE_RUNNING {
-				log.V(0).Info("action state reports this action as running, this case is not handled well, tinklet is going to run it regardless", "action", action.Name)
+				actionLog.V(0).Info("action state reports this action as running, this case is not handled well, tinklet is going to run it regardless")
 			}
 
 			// send status report to tink server that we're starting. in a goroutine so we dont block action executions.
@@ -110,14 +113,12 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 				}
 			}()
 
-			log.V(0).Info("executing action", "action", &action)
+			actionLog.V(0).Info("executing action")
 			start := time.Now()
-			err = executionFlow(ctx, log,
-				dockerClient,
-				action.Image,
+			err = executionFlow(ctx, log, dockerClient, action.Image,
 				types.ImagePullOptions{},
-				actionToDockerContainerConfig(ctx, *action),                                            // nolint
-				actionToDockerHostConfig(ctx, *action),                                                 // nolint
+				actionToDockerContainerConfig(ctx, *action), // nolint
+				actionToDockerHostConfig(ctx, *action),      // nolint
 				fmt.Sprintf("%v-%v", strings.ReplaceAll(action.Name, " ", "-"), time.Now().UnixNano()), // spaces in a container name are not valid, we also add a timestamp so the container name is always unique.                                                // nolint,
 				(time.Duration(action.Timeout) * time.Second),
 			)
@@ -125,7 +126,7 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 			actionFailed := false
 			actStatus := workflow.State_STATE_SUCCESS
 			if err != nil {
-				log.V(0).Error(err, "action completed with an error", "action", &action)
+				actionLog.V(0).Error(err, "action completed with an error")
 				actionFailed = true
 				switch errors.Cause(err).(type) {
 				case *timeoutError:
@@ -163,14 +164,14 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 
 			reportActionStatusWG.Wait()
 			if actionFailed {
-				log.V(0).Info("failure", "action", action.Name)
+				actionLog.V(0).Info("action failed")
 				break
 			}
-			log.V(0).Info("success", "action", action.Name)
+			actionLog.V(0).Info("action succeeded")
 
 		}
 		// as each workflow gets its own reportActionStatusChan, we need to close this reportActionStatusChan now that the workflow is complete
 		close(reportActionStatusChan)
-		log.V(0).Info("workflow complete", "workflow_id", workflowID, "success", "TODO: set workflow success value")
+		log.V(0).Info("workflow complete", "success", "TODO: set an overall workflow success/failure value")
 	}
 }
