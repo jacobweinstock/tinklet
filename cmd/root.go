@@ -40,12 +40,12 @@ func Execute(ctx context.Context) error {
 	// keep trying so that if the problem is temporary or can be resolved the
 	// tinklet doesn't stop and need to be restarted by an outside process or person.
 	for {
-		time.Sleep(time.Second * 3)
 		// setup local container runtime client
 		if dockerClient == nil {
 			dockerClient, err = client.NewClientWithOpts()
 			if err != nil {
 				log.V(0).Error(err, "error creating docker client")
+				time.Sleep(time.Second * 3)
 				continue
 			}
 		}
@@ -55,6 +55,7 @@ func Execute(ctx context.Context) error {
 			conn, err = grpc.Dial(config.TinkServer, grpc.WithInsecure())
 			if err != nil {
 				log.V(0).Error(err, "error connecting to tink server")
+				time.Sleep(time.Second * 3)
 				continue
 			}
 		}

@@ -147,6 +147,7 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 			}()
 
 			// increment the local state current action index to the next value, why do i need to increment the state current action index here?
+			// TODO: understand why setting state.CurrentActionIndex = int64(index) seems to break ReportActionStatus calls
 			state.CurrentActionIndex = int64(index + 1)
 			// update the local state
 			state.CurrentAction = action.Name
