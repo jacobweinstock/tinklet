@@ -81,7 +81,7 @@ func TestGetWorkflows(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	filterByMac := func(workflowClient workflow.WorkflowServiceClient, workflows []*tw.Workflow) []*tw.Workflow {
+	var filterByMac workflowsFilterByFunc = func(workflowClient workflow.WorkflowServiceClient, workflows []*tw.Workflow) []*tw.Workflow {
 		var filteredWorkflows []*tw.Workflow
 		for _, elem := range workflows {
 			if strings.Contains(elem.Hardware, "00:50:56:25:11:0e") {
@@ -91,7 +91,7 @@ func TestGetWorkflows(t *testing.T) {
 		return filteredWorkflows
 	}
 
-	filterByState := func(workflowClient workflow.WorkflowServiceClient, workflows []*tw.Workflow) []*tw.Workflow {
+	var filterByState workflowsFilterByFunc = func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
 		var filteredWorkflows []*tw.Workflow
 		for _, elem := range workflows {
 			if elem.State != tw.State_STATE_SUCCESS && elem.State != tw.State_STATE_TIMEOUT {
@@ -101,10 +101,8 @@ func TestGetWorkflows(t *testing.T) {
 		return filteredWorkflows
 	}
 
-	var filters []func(tw.WorkflowServiceClient, []*tw.Workflow) []*tw.Workflow
-	filters = append(filters, filterByMac, filterByState)
 	client := tw.NewWorkflowServiceClient(conn)
-	workflows, err := getAllWorkflows(context.Background(), client, filters...)
+	workflows, err := getAllWorkflows(context.Background(), client, filterByMac, filterByState)
 	if err != nil {
 		t.Fatal(err)
 	}

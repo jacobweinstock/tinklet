@@ -16,33 +16,17 @@ import (
 )
 
 // ReportActionStatusController handles sending action status reports to tink server.
-// channel is a FIFO queue so we dont lose order
-func ReportActionStatusController(ctx context.Context, log logr.Logger, wg *sync.WaitGroup, jobChan chan func() error) {
-	for job := range jobChan {
-		err := job()
+// channel is a FIFO queue so we dont lose order. for the moment, only retry a ras (report action status) once.
+func ReportActionStatusController(ctx context.Context, log logr.Logger, wg *sync.WaitGroup, rasChan chan func() error) {
+	for ras := range rasChan {
+		err := ras()
 		if err != nil {
-			err := job()
+			err := ras()
 			if err != nil {
 				log.V(0).Error(err, "reporting action status failed")
 			}
 		}
 		wg.Done()
-		/*
-			var statusSendSuccessfully bool
-			for {
-				time.Sleep(3 * time.Second)
-				if statusSendSuccessfully {
-					break
-				}
-				err := job()
-				if err != nil {
-					log.V(0).Error(err, "reporting action status failed")
-					continue
-				}
-				statusSendSuccessfully = true
-				wg.Done()
-			}
-		*/
 	}
 }
 
@@ -66,7 +50,11 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 
 		// the first workflowID found and its associated actions are returned.
 		// workflows will be filtered by: 1. mac address that do not mac the specified 2. workflows that are complete
-		workflowID, actions, err := getActionsList(ctx, workflowClient, filterActionsByWorkerID(workerID), filterWorkflowsByMac(config.Identifier), filterByComplete())
+		workflows, err := getAllWorkflows(ctx, workflowClient, filterWorkflowsByMac(config.Identifier), filterByComplete())
+		if err != nil {
+			continue
+		}
+		workflowID, actions, err := getActionsList(ctx, workflowClient, workflows, filterActionsByWorkerID(workerID))
 		if err != nil {
 			//log.V(0).Info("no action list retrieved", "msg", err.Error(), "workerID", config.Identifier)
 			continue
@@ -84,7 +72,7 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 		reportActionStatusChan := make(chan func() error)
 		var reportActionStatusWG sync.WaitGroup
 		go ReportActionStatusController(ctx, log, &reportActionStatusWG, reportActionStatusChan)
-		log.V(0).Info(fmt.Sprintf("workflow %v report action status controller started", workflowID))
+		log.V(0).Info(fmt.Sprintf("report action status controller for workflow: %v started", workflowID))
 		// TODO: global timeout should go here and be checked after each action is executed
 		for index, action := range actions {
 			// if action is not complete, run it.
@@ -133,7 +121,7 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 				switch errors.Cause(err).(type) {
 				case *timeoutError:
 					actStatus = workflow.State_STATE_TIMEOUT
-				case *actionFailedError:
+				case *executionError:
 					actStatus = workflow.State_STATE_FAILED
 				}
 			}
