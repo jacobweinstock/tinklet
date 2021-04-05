@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -111,7 +112,15 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 
 			log.V(0).Info("executing action", "action", &action)
 			start := time.Now()
-			err = actionExecutionFlow(ctx, log, dockerClient, *action, types.ImagePullOptions{}, workflowID) // nolint
+			err = executionFlow(ctx, log,
+				dockerClient,
+				action.Image,
+				types.ImagePullOptions{},
+				actionToDockerContainerConfig(ctx, *action),                                            // nolint
+				actionToDockerHostConfig(ctx, *action),                                                 // nolint
+				fmt.Sprintf("%v-%v", strings.ReplaceAll(action.Name, " ", "-"), time.Now().UnixNano()), // spaces in a container name are not valid, we also add a timestamp so the container name is always unique.                                                // nolint,
+				(time.Duration(action.Timeout) * time.Second),
+			)
 			elapsed := time.Since(start)
 			actionFailed := false
 			actStatus := workflow.State_STATE_SUCCESS

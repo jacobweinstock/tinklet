@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -15,7 +14,6 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
-	"github.com/tinkerbell/tink/protos/workflow"
 )
 
 // pullImage is what you would expect from a `docker pull` cli command
@@ -99,18 +97,14 @@ LOOP:
 // 3. Start the container
 // 4. Removal of container is go "deferred"
 // 5. Wait and watch for container exit status or timeout
-// TODO: possible remove workflow.WorkflowAction, make this generic. pass in image, container name, container and host configs, and timeout
-func actionExecutionFlow(ctx context.Context, log logr.Logger, dockerClient client.CommonAPIClient, action workflow.WorkflowAction, pullOpts types.ImagePullOptions, workflowID string) error { // nolint
+func executionFlow(ctx context.Context, log logr.Logger, dockerClient client.CommonAPIClient, imageName string, pullOpts types.ImagePullOptions, containerConfig *container.Config, hostConfig *container.HostConfig, containerName string, timeout time.Duration) error {
 	// 1. Pull the image
-	err := pullImage(ctx, dockerClient, action.Image, pullOpts)
+	err := pullImage(ctx, dockerClient, imageName, pullOpts)
 	if err != nil {
 		return errors.Wrap(&executionError{msg: "image pull failed"}, err.Error())
 	}
 	// 2. create container
-	// spaces in a container name are not valid,
-	// we also add a timestamp so the container name is always unique.
-	name := fmt.Sprintf("%v-%v", strings.ReplaceAll(action.Name, " ", "-"), time.Now().UnixNano())
-	containerID, err := createContainer(ctx, log, dockerClient, name, actionToDockerContainerConfig(ctx, action), actionToDockerHostConfig(ctx, action)) // nolint
+	containerID, err := createContainer(ctx, log, dockerClient, containerName, containerConfig, hostConfig)
 	if err != nil {
 		return errors.Wrap(&executionError{msg: "creating container failed"}, err.Error())
 	}
@@ -122,7 +116,7 @@ func actionExecutionFlow(ctx context.Context, log logr.Logger, dockerClient clie
 		return errors.Wrap(&executionError{msg: "starting container failed"}, err.Error())
 	}
 	// 5. Wait and watch for container exit status or timeout
-	err = containerWaiter(ctx, dockerClient, (time.Duration(action.Timeout) * time.Second), containerID)
+	err = containerWaiter(ctx, dockerClient, timeout, containerID)
 	if err != nil {
 		return errors.Wrap(&executionError{msg: "waiting for container failed"}, err.Error())
 	}
