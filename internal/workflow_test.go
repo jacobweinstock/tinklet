@@ -187,7 +187,7 @@ func TestActionToDockerConfig(t *testing.T) {
 		Command:     []string{"/bin/sh"},
 		Environment: []string{"test=one"},
 	}
-	got := actionToDockerContainerConfig(context.Background(), action, withTty(false)) // nolint
+	got := actionToDockerContainerConfig(context.Background(), &action, withTty(false)) // nolint
 	if diff := cmp.Diff(got, expected); diff != "" {
 		t.Fatal(diff)
 	}
@@ -217,7 +217,7 @@ func TestActionToDockerHostConfig(t *testing.T) {
 		},
 		Pid: "host",
 	}
-	got := actionToDockerHostConfig(context.Background(), action, withPid("custom")) // nolint
+	got := actionToDockerHostConfig(context.Background(), &action, withPid("custom")) // nolint
 	if diff := cmp.Diff(got, expected); diff != "" {
 		t.Fatal(diff)
 	}

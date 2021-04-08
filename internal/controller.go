@@ -16,28 +16,39 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// ReportActionStatusController handles sending action status reports to tink server.
+// ReportActionStatusController is generic in that it the chan is just a func that returns an error
+// but currently only handles sending action status reports to tink server.
 // channel is a FIFO queue so we dont lose order. for the moment, only retry a ras (report action status) once.
-func ReportActionStatusController(ctx context.Context, log logr.Logger, wg *sync.WaitGroup, rasChan chan func() error) {
-	for ras := range rasChan {
-		err := ras()
-		if err != nil {
+func ReportActionStatusController(ctx context.Context, log logr.Logger, sharedWg *sync.WaitGroup, rasChan chan func() error, doneWg *sync.WaitGroup) {
+	for {
+		select {
+		case <-ctx.Done():
+			log.V(0).Info("stopping report action status controller")
+			doneWg.Done()
+			return
+		case ras := <-rasChan:
 			err := ras()
 			if err != nil {
-				log.V(0).Error(err, "reporting action status failed")
+				err := ras()
+				if err != nil {
+					log.V(0).Error(err, "reporting action status failed")
+				}
 			}
+			sharedWg.Done()
 		}
-		wg.Done()
 	}
 }
 
 // WorkflowActionController runs the tinklet control loop that watches for workflows to executes
-func WorkflowActionController(ctx context.Context, log logr.Logger, config Configuration, dockerClient *client.Client, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient) error {
+func WorkflowActionController(ctx context.Context, log logr.Logger, config Configuration, dockerClient *client.Client, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, reportActionStatusWG *sync.WaitGroup, reportActionStatusChan chan func() error, doneWg *sync.WaitGroup) {
+	initialLog := log
 	for {
+		log = initialLog
 		select {
 		case <-ctx.Done():
-			log.V(0).Info("stopping controller")
-			return nil
+			log.V(0).Info("stopping workflow action controller")
+			doneWg.Done()
+			return
 		default:
 		}
 		time.Sleep(3 * time.Second)
@@ -72,10 +83,6 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 			continue
 		}
 
-		reportActionStatusChan := make(chan func() error)
-		var reportActionStatusWG sync.WaitGroup
-		go ReportActionStatusController(ctx, log, &reportActionStatusWG, reportActionStatusChan)
-		log.V(0).Info("report action status controller started")
 		// TODO: global timeout should go here and be checked after each action is executed
 		for index, action := range actions {
 			actionLog := log.WithValues("action", &action)
@@ -117,9 +124,10 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 			start := time.Now()
 			err = executionFlow(ctx, log, dockerClient, action.Image,
 				types.ImagePullOptions{},
-				actionToDockerContainerConfig(ctx, *action), // nolint
-				actionToDockerHostConfig(ctx, *action),      // nolint
-				fmt.Sprintf("%v-%v", strings.ReplaceAll(action.Name, " ", "-"), time.Now().UnixNano()), // spaces in a container name are not valid, we also add a timestamp so the container name is always unique.                                                // nolint,
+				actionToDockerContainerConfig(ctx, action), // nolint
+				actionToDockerHostConfig(ctx, action),      // nolint
+				// spaces in a container name are not valid, add a timestamp so the container name is always unique.
+				fmt.Sprintf("%v-%v", strings.ReplaceAll(action.Name, " ", "-"), time.Now().UnixNano()),
 				(time.Duration(action.Timeout) * time.Second),
 			)
 			elapsed := time.Since(start)
@@ -170,8 +178,6 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 			actionLog.V(0).Info("action succeeded")
 
 		}
-		// as each workflow gets its own reportActionStatusChan, we need to close this reportActionStatusChan now that the workflow is complete
-		close(reportActionStatusChan)
 		log.V(0).Info("workflow complete", "success", "TODO: set an overall workflow success/failure value")
 	}
 }

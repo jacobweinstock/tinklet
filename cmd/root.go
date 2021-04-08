@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/docker/docker/client"
@@ -68,6 +69,18 @@ func Execute(ctx context.Context) error {
 	// setup the hardware rpc service client
 	hardwareClient := hardware.NewHardwareServiceClient(conn)
 
+	var actionExecutionWg sync.WaitGroup
+	var controllerWg sync.WaitGroup
+	reportActionStatusChan := make(chan func() error)
+	log.V(0).Info("report action status controller started")
+	controllerWg.Add(1)
+	go internal.ReportActionStatusController(ctx, log, &actionExecutionWg, reportActionStatusChan, &controllerWg)
 	log.V(0).Info("workflow action controller started")
-	return internal.WorkflowActionController(ctx, log, config, dockerClient, workflowClient, hardwareClient)
+	controllerWg.Add(1)
+	go internal.WorkflowActionController(ctx, log, config, dockerClient, workflowClient, hardwareClient, &actionExecutionWg, reportActionStatusChan, &controllerWg)
+
+	<-ctx.Done()
+	controllerWg.Wait()
+	log.V(0).Info("tinklet stopped, good bye")
+	return nil
 }

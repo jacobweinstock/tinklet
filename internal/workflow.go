@@ -22,7 +22,7 @@ type containerConfigOption func(*container.Config)
 type containerHostOption func(*container.HostConfig)
 
 // actionToDockerContainerConfig takes a workflowAction and translates it to a docker container config
-func actionToDockerContainerConfig(ctx context.Context, workflowAction workflow.WorkflowAction, opts ...containerConfigOption) *container.Config { // nolint
+func actionToDockerContainerConfig(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...containerConfigOption) *container.Config { // nolint
 	defaultConfig := &container.Config{
 		AttachStdout: true,
 		AttachStderr: true,
@@ -37,7 +37,7 @@ func actionToDockerContainerConfig(ctx context.Context, workflowAction workflow.
 	return defaultConfig
 }
 
-func actionToDockerHostConfig(ctx context.Context, workflowAction workflow.WorkflowAction, opts ...containerHostOption) *container.HostConfig { // nolint
+func actionToDockerHostConfig(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...containerHostOption) *container.HostConfig { // nolint
 	defaultConfig := &container.HostConfig{
 		Binds:      workflowAction.Volumes,
 		PidMode:    container.PidMode(workflowAction.Pid),
