@@ -6,15 +6,53 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/tinkerbell/tink/protos/workflow"
 )
 
+type workflowsFilterByFunc = func(workflow.WorkflowServiceClient, []*workflow.Workflow) []*workflow.Workflow
+type actionsFilterByFunc = func([]*workflow.WorkflowAction) []*workflow.WorkflowAction
+
+// containerConfigOption allows modifying the container config defaults
+type containerConfigOption func(*container.Config)
+
+// containerHostOption allows modifying the container host config defaults
+type containerHostOption func(*container.HostConfig)
+
+// actionToDockerContainerConfig takes a workflowAction and translates it to a docker container config
+func actionToDockerContainerConfig(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...containerConfigOption) *container.Config { // nolint
+	defaultConfig := &container.Config{
+		AttachStdout: true,
+		AttachStderr: true,
+		Tty:          true,
+		Env:          workflowAction.Environment,
+		Cmd:          workflowAction.Command,
+		Image:        workflowAction.Image,
+	}
+	for _, opt := range opts {
+		opt(defaultConfig)
+	}
+	return defaultConfig
+}
+
+func actionToDockerHostConfig(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...containerHostOption) *container.HostConfig { // nolint
+	defaultConfig := &container.HostConfig{
+		Binds:      workflowAction.Volumes,
+		PidMode:    container.PidMode(workflowAction.Pid),
+		Privileged: true,
+	}
+	for _, opt := range opts {
+		opt(defaultConfig)
+	}
+	return defaultConfig
+}
+
 // getAllWorkflows job is to talk with tink server and retrieve all workflows.
 // Optionally, if one or more filterByFunc is passed in,
 // these filterByFunc will be used to filter all the workflows that were retrieved.
-func getAllWorkflows(ctx context.Context, client workflow.WorkflowServiceClient, filterByFunc ...func(workflow.WorkflowServiceClient, []*workflow.Workflow) []*workflow.Workflow) ([]*workflow.Workflow, error) {
+func getAllWorkflows(ctx context.Context, client workflow.WorkflowServiceClient, filterByFunc ...workflowsFilterByFunc) ([]*workflow.Workflow, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*60)
 	defer cancel()
 	allWorkflows, err := client.ListWorkflows(ctx, &workflow.Empty{})
@@ -49,13 +87,8 @@ func getAllWorkflows(ctx context.Context, client workflow.WorkflowServiceClient,
 }
 
 // getActionsList will get all workflows, filter and return the first workflow's action list
-func getActionsList(ctx context.Context, workflowClient workflow.WorkflowServiceClient, filterByFunc ...func(workflow.WorkflowServiceClient, []*workflow.Workflow) []*workflow.Workflow) (workflowID string, actions []*workflow.WorkflowAction, err error) {
-	workflows, err := getAllWorkflows(ctx, workflowClient, filterByFunc...)
-	if err != nil {
-		return "", nil, errors.WithMessage(err, "getAllWorkflows failed")
-	}
-
-	// for the moment only execute the first workflow found
+func getActionsList(ctx context.Context, workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow, filterByFunc ...actionsFilterByFunc) (workflowID string, actions []*workflow.WorkflowAction, err error) {
+	// for the moment only get the first workflow found
 	if len(workflows) == 0 {
 		return "", nil, errors.New("no workflows found")
 	}
@@ -64,12 +97,20 @@ func getActionsList(ctx context.Context, workflowClient workflow.WorkflowService
 	if err != nil {
 		return "", nil, errors.WithMessage(err, "GetWorkflowActions failed")
 	}
+	var acts []*workflow.WorkflowAction
+	// run caller defined filtering
+	for index := range filterByFunc {
+		if filterByFunc[index] != nil {
+			actionsFiltered := filterByFunc[index](resp.GetActionList())
+			acts = actionsFiltered
+		}
+	}
 
-	return workflowID, resp.GetActionList(), nil
+	return workflowID, acts, nil
 }
 
 // filterWorkflowsByMac will return only workflows whose hardware devices contains the given mac
-func filterWorkflowsByMac(mac string) func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
+func filterWorkflowsByMac(mac string) workflowsFilterByFunc {
 	return func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
 		var filteredWorkflows []*workflow.Workflow
 		for _, elem := range workflows {
@@ -81,8 +122,21 @@ func filterWorkflowsByMac(mac string) func(workflowClient workflow.WorkflowServi
 	}
 }
 
+// filterWorkflowsByMac will return only workflows whose hardware devices contains the given mac
+func filterActionsByWorkerID(id string) actionsFilterByFunc {
+	return func(actions []*workflow.WorkflowAction) []*workflow.WorkflowAction {
+		var filteredActions []*workflow.WorkflowAction
+		for _, elem := range actions {
+			if elem.GetWorkerId() == id {
+				filteredActions = append(filteredActions, elem)
+			}
+		}
+		return filteredActions
+	}
+}
+
 // filterByComplete will return workflows that finished. Finished is if all actions in a workflow are completed.
-func filterByComplete() func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
+func filterByComplete() workflowsFilterByFunc {
 	return func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()

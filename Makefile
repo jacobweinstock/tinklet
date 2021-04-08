@@ -35,3 +35,11 @@ ifeq (${OSFLAG},linux)
 else
 	@$(MAKE) darwin
 endif
+
+PHONY: run-server
+run-server: ## run server locally
+ifeq (, $(shell which jq))
+	go run ./bin/${BINARY} server
+else
+	scripts/run-tinklet.sh
+endif

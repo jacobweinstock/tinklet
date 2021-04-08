@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/go-multierror"
@@ -81,7 +82,7 @@ func TestGetWorkflows(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	filterByMac := func(workflowClient workflow.WorkflowServiceClient, workflows []*tw.Workflow) []*tw.Workflow {
+	var filterByMac workflowsFilterByFunc = func(workflowClient workflow.WorkflowServiceClient, workflows []*tw.Workflow) []*tw.Workflow {
 		var filteredWorkflows []*tw.Workflow
 		for _, elem := range workflows {
 			if strings.Contains(elem.Hardware, "00:50:56:25:11:0e") {
@@ -91,7 +92,7 @@ func TestGetWorkflows(t *testing.T) {
 		return filteredWorkflows
 	}
 
-	filterByState := func(workflowClient workflow.WorkflowServiceClient, workflows []*tw.Workflow) []*tw.Workflow {
+	var filterByState workflowsFilterByFunc = func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
 		var filteredWorkflows []*tw.Workflow
 		for _, elem := range workflows {
 			if elem.State != tw.State_STATE_SUCCESS && elem.State != tw.State_STATE_TIMEOUT {
@@ -101,10 +102,8 @@ func TestGetWorkflows(t *testing.T) {
 		return filteredWorkflows
 	}
 
-	var filters []func(tw.WorkflowServiceClient, []*tw.Workflow) []*tw.Workflow
-	filters = append(filters, filterByMac, filterByState)
 	client := tw.NewWorkflowServiceClient(conn)
-	workflows, err := getAllWorkflows(context.Background(), client, filters...)
+	workflows, err := getAllWorkflows(context.Background(), client, filterByMac, filterByState)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +159,7 @@ func TestReporting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflowID, actions, err := getActionsList(context.Background(), tw.NewWorkflowServiceClient(conn))
+	workflowID, actions, err := getActionsList(context.Background(), tw.NewWorkflowServiceClient(conn), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,4 +168,57 @@ func TestReporting(t *testing.T) {
 	t.Log(actions)
 
 	t.Fatal()
+}
+
+func TestActionToDockerConfig(t *testing.T) {
+	withTty := func(tty bool) containerConfigOption {
+		return func(args *container.Config) { args.Tty = tty }
+	}
+	expected := &container.Config{
+		AttachStdout: true,
+		AttachStderr: true,
+		Tty:          false,
+		Env:          []string{"test=one"},
+		Cmd:          []string{"/bin/sh"},
+		Image:        "nginx",
+	}
+	action := workflow.WorkflowAction{
+		Image:       "nginx",
+		Command:     []string{"/bin/sh"},
+		Environment: []string{"test=one"},
+	}
+	got := actionToDockerContainerConfig(context.Background(), &action, withTty(false)) // nolint
+	if diff := cmp.Diff(got, expected); diff != "" {
+		t.Fatal(diff)
+	}
+}
+
+func TestActionToDockerHostConfig(t *testing.T) {
+	withPid := func(pid string) containerHostOption {
+		return func(args *container.HostConfig) { args.PidMode = container.PidMode(pid) }
+	}
+	expected := &container.HostConfig{
+		Binds: []string{
+			"/dev:/dev",
+			"/dev/console:/dev/console",
+			"/lib/firmware:/lib/firmware:ro",
+		},
+		PidMode:    container.PidMode("custom"),
+		Privileged: true,
+	}
+	action := workflow.WorkflowAction{
+		Image:       "nginx",
+		Command:     []string{"/bin/sh"},
+		Environment: []string{"test=one"},
+		Volumes: []string{
+			"/dev:/dev",
+			"/dev/console:/dev/console",
+			"/lib/firmware:/lib/firmware:ro",
+		},
+		Pid: "host",
+	}
+	got := actionToDockerHostConfig(context.Background(), &action, withPid("custom")) // nolint
+	if diff := cmp.Diff(got, expected); diff != "" {
+		t.Fatal(diff)
+	}
 }
