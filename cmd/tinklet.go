@@ -7,7 +7,7 @@ import (
 
 	"github.com/docker/docker/client"
 	"github.com/jacobweinstock/goconfig"
-	"github.com/jacobweinstock/tinklet/internal"
+	"github.com/jacobweinstock/tinklet/app"
 	"github.com/packethost/pkg/log/logr"
 	"github.com/tinkerbell/tink/protos/hardware"
 	"github.com/tinkerbell/tink/protos/workflow"
@@ -17,7 +17,7 @@ import (
 // Execute sets up the config and logging, then run the tinklet control loop
 func Execute(ctx context.Context) error {
 	// set default config values
-	config := internal.Configuration{
+	config := configuration{
 		LogLevel: "info",
 	}
 	cfgParser := goconfig.NewParser(
@@ -64,9 +64,9 @@ func Execute(ctx context.Context) error {
 		break
 	}
 
-	// setup the workflow rpc service client
+	// setup the workflow rpc service client - enables us to get workflows
 	workflowClient := workflow.NewWorkflowServiceClient(conn)
-	// setup the hardware rpc service client
+	// setup the hardware rpc service client - enables us to the workerID (which is the hardware data ID)
 	hardwareClient := hardware.NewHardwareServiceClient(conn)
 
 	var actionExecutionWg sync.WaitGroup
@@ -74,11 +74,13 @@ func Execute(ctx context.Context) error {
 	reportActionStatusChan := make(chan func() error)
 	log.V(0).Info("report action status controller started")
 	controllerWg.Add(1)
-	go internal.ReportActionStatusController(ctx, log, &actionExecutionWg, reportActionStatusChan, &controllerWg)
+	go app.ReportActionStatusController(ctx, log, &actionExecutionWg, reportActionStatusChan, &controllerWg)
 	log.V(0).Info("workflow action controller started")
 	controllerWg.Add(1)
-	go internal.WorkflowActionController(ctx, log, config, dockerClient, workflowClient, hardwareClient, &actionExecutionWg, reportActionStatusChan, &controllerWg)
+	//go controller.WorkflowActionController(ctx, log, config.Identifier, dockerClient, workflowClient, hardwareClient, &actionExecutionWg, reportActionStatusChan, &controllerWg)
+	go app.Reconciler(ctx, log, config.Identifier, dockerClient, workflowClient, hardwareClient, &controllerWg)
 
+	// graceful shutdown when a signal is caught
 	<-ctx.Done()
 	controllerWg.Wait()
 	log.V(0).Info("tinklet stopped, good bye")

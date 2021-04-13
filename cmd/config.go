@@ -1,7 +1,7 @@
-package internal
+package cmd
 
-// Configuration for Tinklet, values are normally set from flags, env, and file
-type Configuration struct {
+// configuration for Tinklet, values are normally set from flags, env, and file
+type configuration struct {
 	LogLevel   string `flag:"loglevel"`
 	Config     string
 	Identifier string `valid:"required"`

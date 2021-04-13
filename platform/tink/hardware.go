@@ -1,4 +1,4 @@
-package internal
+package tink
 
 import (
 	"context"
@@ -9,13 +9,13 @@ import (
 	"github.com/tinkerbell/tink/protos/hardware"
 )
 
-// getHardwareID returns the hardware ID from tink server.
+// GetHardwareID returns the hardware ID from tink server.
 // it will identify if the identifier is an IP or a MAC address
 // and make the correct call to tink.
 // this hardware ID is what tink uses for the "worker_id". the
 // worker_id is used to identify a specific worker and to be able to query
 // tink forr things like assigned workflows and actions.
-func getHardwareID(ctx context.Context, client hardware.HardwareServiceClient, identifier string) (string, error) {
+func GetHardwareID(ctx context.Context, client hardware.HardwareServiceClient, identifier string) (string, error) {
 	var err error
 	var hw *hardware.Hardware
 	var request hardware.GetRequest

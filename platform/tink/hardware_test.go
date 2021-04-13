@@ -1,4 +1,4 @@
-package internal
+package tink
 
 import (
 	"context"
@@ -42,7 +42,7 @@ func TestGetHardwareID(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			got, err := getHardwareID(context.Background(), client, tc.identifier)
+			got, err := GetHardwareID(context.Background(), client, tc.identifier)
 			if err != nil {
 				if tc.err != nil {
 					if diff := cmp.Diff(err.Error(), tc.err.Error()); diff != "" {

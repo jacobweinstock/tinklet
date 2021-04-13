@@ -1,4 +1,4 @@
-package internal
+package app
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/go-logr/logr"
+	"github.com/jacobweinstock/tinklet/platform"
+	"github.com/jacobweinstock/tinklet/platform/tink"
 	"github.com/pkg/errors"
 	"github.com/tinkerbell/tink/protos/hardware"
 	"github.com/tinkerbell/tink/protos/workflow"
@@ -39,22 +41,125 @@ func ReportActionStatusController(ctx context.Context, log logr.Logger, sharedWg
 	}
 }
 
-// WorkflowActionController runs the tinklet control loop that watches for workflows to executes
-func WorkflowActionController(ctx context.Context, log logr.Logger, config Configuration, dockerClient *client.Client, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, reportActionStatusWG *sync.WaitGroup, reportActionStatusChan chan func() error, doneWg *sync.WaitGroup) {
+// 1. is there a workflow task to execute?
+// 1a. if yes - get workflow tasks based on workflowID and workerID
+// 1b. if no - ask again later
+func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerClient client.CommonAPIClient, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, stopControllerWg *sync.WaitGroup) {
 	initialLog := log
 	for {
 		log = initialLog
 		select {
 		case <-ctx.Done():
-			log.V(0).Info("stopping workflow action controller")
-			doneWg.Done()
+			log.V(0).Info("stopping controller")
+			stopControllerWg.Done()
 			return
 		default:
 		}
 		time.Sleep(3 * time.Second)
 
 		// get the worker_id from tink server
-		workerID, err := getHardwareID(ctx, hardwareClient, config.Identifier)
+		workerID, err := tink.GetHardwareID(ctx, hardwareClient, identifier)
+		if err != nil {
+			log.V(0).Error(err, "error getting workerID from tink server")
+			continue
+		}
+		log = log.WithValues("workerID", workerID)
+
+		// 1. is there a workflow task to execute?
+		workflowIDs, err := tink.GetWorkflowContexts(ctx, workerID, workflowClient)
+		if err != nil {
+			// 1b. err then try again later, ie. continue loop
+			log.V(0).Info("no actions to execute")
+			continue
+		}
+
+		// 1a. for each workflow, get the associated actions based on workerID and execute them
+		// if the workflowIDs is an empty slice try again later, ie. continue loop
+		for _, id := range workflowIDs {
+			// get the workflow tasks associated with the workflowID and workerID
+			acts, err := tink.GetActionsList(ctx, id.GetWorkflowId(), workflowClient, tink.FilterActionsByWorkerID(workerID))
+			if err != nil {
+				break
+			}
+			for _, elem := range acts {
+				actionLog := log.WithValues("action", &elem)
+				workflowClient.ReportActionStatus(ctx, &workflow.WorkflowActionStatus{
+					WorkflowId:   id.GetWorkflowId(),
+					TaskName:     elem.TaskName,
+					ActionName:   elem.Name,
+					ActionStatus: workflow.State_STATE_RUNNING,
+					Seconds:      0,
+					Message:      "starting execution",
+					CreatedAt:    &timestamppb.Timestamp{},
+					WorkerId:     workerID,
+				})
+				actionLog.V(0).Info("executing action")
+				start := time.Now()
+				err = ActionExecutionFlow(ctx, log, dockerClient, elem.Image,
+					types.ImagePullOptions{},
+					tink.ActionToDockerContainerConfig(ctx, elem), // nolint
+					tink.ActionToDockerHostConfig(ctx, elem),      // nolint
+					// spaces in a container name are not valid, add a timestamp so the container name is always unique.
+					fmt.Sprintf("%v-%v", strings.ReplaceAll(elem.Name, " ", "-"), time.Now().UnixNano()),
+					(time.Duration(elem.Timeout) * time.Second),
+				)
+				elapsed := time.Since(start)
+				actStatus := workflow.State_STATE_SUCCESS
+				if err != nil {
+					actionLog.V(0).Error(err, "action completed with an error")
+					switch errors.Cause(err).(type) {
+					case *platform.TimeoutError:
+						actStatus = workflow.State_STATE_TIMEOUT
+					default:
+						actStatus = workflow.State_STATE_FAILED
+					}
+				}
+				workflowClient.ReportActionStatus(ctx, &workflow.WorkflowActionStatus{
+					WorkflowId:   id.GetWorkflowId(),
+					TaskName:     elem.TaskName,
+					ActionName:   elem.Name,
+					ActionStatus: actStatus,
+					Seconds:      int64(elapsed.Seconds()),
+					Message:      "action complete",
+					CreatedAt:    &timestamppb.Timestamp{},
+					WorkerId:     workerID,
+				})
+				actionLog.V(0).Info("action complete", "err", err)
+			}
+		}
+	}
+}
+
+// there are 2 overall processes that need to happen
+// 1. query tink server to know whether there is a workflow task to run and what the details of that task are
+// ideally tink server holds all the business logic here. tinklet shouldnt have to make any determinations about whether to run or wait.
+// if tink server provides something to run, it runs immediately.
+//
+// 2. run the actions in the task, send status reports as the actions are executed
+/*func ActionsController(ctx context.Context, log logr.Logger, tinkClient tinkInterface) {
+
+}*/
+
+// WorkflowActionController runs the tinklet control loop that watches for workflows to executes
+// TODO: remove the business logic of when and what to execute from here, pass it in possibly, maybe an interface or a func?
+// TODO: think about passing in the execution flow logic of an action, maybe an interface or a func?
+
+/*
+func WorkflowActionController(ctx context.Context, log logr.Logger, identifier string, dockerClient client.CommonAPIClient, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, reportActionStatusWG *sync.WaitGroup, reportActionStatusChan chan func() error, stopControllerWg *sync.WaitGroup) {
+	initialLog := log
+	for {
+		log = initialLog
+		select {
+		case <-ctx.Done():
+			log.V(0).Info("stopping workflow action controller")
+			stopControllerWg.Done()
+			return
+		default:
+		}
+		time.Sleep(3 * time.Second)
+
+		// get the worker_id from tink server
+		workerID, err := tink.GetHardwareID(ctx, hardwareClient, identifier)
 		if err != nil {
 			log.V(0).Error(err, "error getting workerID from tink server")
 			continue
@@ -63,13 +168,14 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 
 		// the first workflowID found and its associated actions are returned.
 		// workflows will be filtered by: 1. mac address that do not mac the specified 2. workflows that are complete
-		workflows, err := getAllWorkflows(ctx, workflowClient, filterWorkflowsByMac(config.Identifier), filterByComplete())
+		workflows, err := tink.GetAllWorkflows(ctx, workflowClient, tink.FilterWorkflowsByMac(identifier), tink.FilterByComplete())
 		if err != nil {
 			continue
 		}
-		workflowID, actions, err := getActionsList(ctx, workflowClient, workflows, filterActionsByWorkerID(workerID))
+		workflowID := workflows[0].Id
+		actions, err := tink.GetActionsList(ctx, workflowID, workflowClient, tink.FilterActionsByWorkerID(workerID))
 		if err != nil {
-			//log.V(0).Info("no action list retrieved", "msg", err.Error(), "workerID", config.Identifier)
+			//log.V(0).Info("no action list retrieved", "msg", err.Error(), "workerID", identifier)
 			continue
 		}
 		log = log.WithValues("workflowID", workflowID)
@@ -122,10 +228,10 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 
 			actionLog.V(0).Info("executing action")
 			start := time.Now()
-			err = executionFlow(ctx, log, dockerClient, action.Image,
+			err = tinklet.ActionExecutionFlow(ctx, log, dockerClient, action.Image,
 				types.ImagePullOptions{},
-				actionToDockerContainerConfig(ctx, action), // nolint
-				actionToDockerHostConfig(ctx, action),      // nolint
+				tink.ActionToDockerContainerConfig(ctx, action), // nolint
+				tink.ActionToDockerHostConfig(ctx, action),      // nolint
 				// spaces in a container name are not valid, add a timestamp so the container name is always unique.
 				fmt.Sprintf("%v-%v", strings.ReplaceAll(action.Name, " ", "-"), time.Now().UnixNano()),
 				(time.Duration(action.Timeout) * time.Second),
@@ -137,9 +243,9 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 				actionLog.V(0).Error(err, "action completed with an error")
 				actionFailed = true
 				switch errors.Cause(err).(type) {
-				case *timeoutError:
+				case *platform.TimeoutError:
 					actStatus = workflow.State_STATE_TIMEOUT
-				case *executionError:
+				case *platform.ExecutionError:
 					actStatus = workflow.State_STATE_FAILED
 				}
 			}
@@ -181,3 +287,4 @@ func WorkflowActionController(ctx context.Context, log logr.Logger, config Confi
 		log.V(0).Info("workflow complete", "success", "TODO: set an overall workflow success/failure value")
 	}
 }
+*/

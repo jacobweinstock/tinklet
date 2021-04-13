@@ -1,4 +1,4 @@
-package internal
+package tink
 
 import (
 	"context"
@@ -21,8 +21,8 @@ type containerConfigOption func(*container.Config)
 // containerHostOption allows modifying the container host config defaults
 type containerHostOption func(*container.HostConfig)
 
-// actionToDockerContainerConfig takes a workflowAction and translates it to a docker container config
-func actionToDockerContainerConfig(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...containerConfigOption) *container.Config { // nolint
+// ActionToDockerContainerConfig takes a workflowAction and translates it to a docker container config
+func ActionToDockerContainerConfig(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...containerConfigOption) *container.Config { // nolint
 	defaultConfig := &container.Config{
 		AttachStdout: true,
 		AttachStderr: true,
@@ -37,7 +37,7 @@ func actionToDockerContainerConfig(ctx context.Context, workflowAction *workflow
 	return defaultConfig
 }
 
-func actionToDockerHostConfig(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...containerHostOption) *container.HostConfig { // nolint
+func ActionToDockerHostConfig(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...containerHostOption) *container.HostConfig { // nolint
 	defaultConfig := &container.HostConfig{
 		Binds:      workflowAction.Volumes,
 		PidMode:    container.PidMode(workflowAction.Pid),
@@ -49,10 +49,41 @@ func actionToDockerHostConfig(ctx context.Context, workflowAction *workflow.Work
 	return defaultConfig
 }
 
-// getAllWorkflows job is to talk with tink server and retrieve all workflows.
+// GetWorkflowContexts returns a slice of workflow contexts (a context is whether there is a workflow task assigned to this workerID)
+// if the returned slice is not empty then there is something to be executed by this workerID
+func GetWorkflowContexts(ctx context.Context, workerID string, client workflow.WorkflowServiceClient) ([]*workflow.WorkflowContext, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*60)
+	defer cancel()
+	contexts, err := client.GetWorkflowContexts(ctx, &workflow.WorkflowContextRequest{
+		WorkerId: workerID,
+	})
+	if err != nil {
+		return nil, errors.WithMessage(err, "error getting workflow contexts")
+	}
+
+	var wks []*workflow.WorkflowContext
+	for {
+		aWorkflow, recvErr := contexts.Recv()
+		if recvErr == io.EOF {
+			break
+		}
+		if recvErr != nil {
+			err = multierror.Append(err, recvErr)
+			continue
+		}
+		wks = append(wks, aWorkflow)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return wks, nil
+}
+
+// GetAllWorkflows job is to talk with tink server and retrieve all workflows.
 // Optionally, if one or more filterByFunc is passed in,
 // these filterByFunc will be used to filter all the workflows that were retrieved.
-func getAllWorkflows(ctx context.Context, client workflow.WorkflowServiceClient, filterByFunc ...workflowsFilterByFunc) ([]*workflow.Workflow, error) {
+func GetAllWorkflows(ctx context.Context, client workflow.WorkflowServiceClient, filterByFunc ...workflowsFilterByFunc) ([]*workflow.Workflow, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*60)
 	defer cancel()
 	allWorkflows, err := client.ListWorkflows(ctx, &workflow.Empty{})
@@ -86,18 +117,15 @@ func getAllWorkflows(ctx context.Context, client workflow.WorkflowServiceClient,
 	return wks, nil
 }
 
-// getActionsList will get all workflows, filter and return the first workflow's action list
-func getActionsList(ctx context.Context, workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow, filterByFunc ...actionsFilterByFunc) (workflowID string, actions []*workflow.WorkflowAction, err error) {
-	// for the moment only get the first workflow found
-	if len(workflows) == 0 {
-		return "", nil, errors.New("no workflows found")
-	}
-	workflowID = workflows[0].Id
+// GetActionsList will get all workflows actions for a given workflowID. It will optionally, filter the workflow actions based on any filterByFunc passed in
+func GetActionsList(ctx context.Context, workflowID string, workflowClient workflow.WorkflowServiceClient, filterByFunc ...actionsFilterByFunc) (actions []*workflow.WorkflowAction, err error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*60)
+	defer cancel()
 	resp, err := workflowClient.GetWorkflowActions(ctx, &workflow.WorkflowActionsRequest{WorkflowId: workflowID})
 	if err != nil {
-		return "", nil, errors.WithMessage(err, "GetWorkflowActions failed")
+		return nil, errors.WithMessage(err, "GetActionsList failed")
 	}
-	var acts []*workflow.WorkflowAction
+	acts := resp.GetActionList()
 	// run caller defined filtering
 	for index := range filterByFunc {
 		if filterByFunc[index] != nil {
@@ -106,11 +134,11 @@ func getActionsList(ctx context.Context, workflowClient workflow.WorkflowService
 		}
 	}
 
-	return workflowID, acts, nil
+	return acts, nil
 }
 
-// filterWorkflowsByMac will return only workflows whose hardware devices contains the given mac
-func filterWorkflowsByMac(mac string) workflowsFilterByFunc {
+// FilterWorkflowsByMac will return only workflows whose hardware devices contains the given mac
+func FilterWorkflowsByMac(mac string) workflowsFilterByFunc {
 	return func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
 		var filteredWorkflows []*workflow.Workflow
 		for _, elem := range workflows {
@@ -123,7 +151,7 @@ func filterWorkflowsByMac(mac string) workflowsFilterByFunc {
 }
 
 // filterWorkflowsByMac will return only workflows whose hardware devices contains the given mac
-func filterActionsByWorkerID(id string) actionsFilterByFunc {
+func FilterActionsByWorkerID(id string) actionsFilterByFunc {
 	return func(actions []*workflow.WorkflowAction) []*workflow.WorkflowAction {
 		var filteredActions []*workflow.WorkflowAction
 		for _, elem := range actions {
@@ -135,8 +163,8 @@ func filterActionsByWorkerID(id string) actionsFilterByFunc {
 	}
 }
 
-// filterByComplete will return workflows that finished. Finished is if all actions in a workflow are completed.
-func filterByComplete() workflowsFilterByFunc {
+// FilterByComplete will return workflows that finished. Finished is if all actions in a workflow are completed.
+func FilterByComplete() workflowsFilterByFunc {
 	return func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()

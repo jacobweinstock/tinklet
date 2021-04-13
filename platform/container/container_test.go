@@ -1,4 +1,4 @@
-package internal
+package container
 
 import (
 	"context"
@@ -8,12 +8,11 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
+	tainer "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/google/go-cmp/cmp"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/packethost/pkg/log/logr"
 	"github.com/pkg/errors"
 )
 
@@ -52,8 +51,8 @@ func (t *mockClient) ImagePull(ctx context.Context, ref string, options types.Im
 	return t.mock.stringReadCloser, t.mock.imagePullErr
 }
 
-func (t *mockClient) ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *specs.Platform, containerName string) (container.ContainerCreateCreatedBody, error) {
-	return container.ContainerCreateCreatedBody{ID: t.mock.createID, Warnings: t.mock.createWarnings}, t.mock.createErr
+func (t *mockClient) ContainerCreate(ctx context.Context, config *tainer.Config, hostConfig *tainer.HostConfig, networkingConfig *network.NetworkingConfig, platform *specs.Platform, containerName string) (tainer.ContainerCreateCreatedBody, error) {
+	return tainer.ContainerCreateCreatedBody{ID: t.mock.createID, Warnings: t.mock.createWarnings}, t.mock.createErr
 }
 
 func (t *mockClient) ContainerInspect(ctx context.Context, container string) (types.ContainerJSON, error) {
@@ -76,7 +75,7 @@ func TestActualPull(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	err = pullImage(ctx, cl, imageName, pullOpts)
+	err = PullImage(ctx, cl, imageName, pullOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,17 +89,16 @@ func TestActualCreateContainer(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	log, _, _ := logr.NewPacketLogr()
-	conf := &container.Config{
+	conf := &tainer.Config{
 		Image:        "alpine",
 		AttachStdout: true,
 		AttachStderr: true,
 		Tty:          true,
 	}
-	hostConf := &container.HostConfig{
+	hostConf := &tainer.HostConfig{
 		Privileged: true,
 	}
-	id, err := createContainer(ctx, log, cl, "jacob-test", conf, hostConf)
+	id, err := CreateContainer(ctx, cl, "jacob-test", conf, hostConf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +125,7 @@ func TestCreateContainer(t *testing.T) {
 				},
 			}
 			mClient := mockClient{mock: helper}
-			id, err := createContainer(context.Background(), nil, &mClient, "testing", nil, nil)
+			id, err := CreateContainer(context.Background(), &mClient, "testing", nil, nil)
 			if err != nil {
 				if tc.expectedErr != nil {
 					if diff := cmp.Diff(err.Error(), tc.expectedErr.Error()); diff != "" {
@@ -174,7 +172,7 @@ func TestContainerWait(t *testing.T) {
 				},
 			}
 			mClient := mockClient{mock: helper}
-			err := containerWaiter(context.Background(), &mClient, time.Duration(2), tc.expectedContainerID)
+			err := ContainerWaiter(context.Background(), &mClient, time.Duration(2), tc.expectedContainerID)
 			if err != nil {
 				if tc.expectedLogsErr != nil {
 					if diff := cmp.Diff(err.Error(), tc.expectedLogsErr.Error()); diff != "" {
@@ -223,7 +221,7 @@ func TestPullImage(t *testing.T) {
 			}
 			mClient := mockClient{mock: helper}
 			ctx := context.Background()
-			err := pullImage(ctx, &mClient, "something", types.ImagePullOptions{})
+			err := PullImage(ctx, &mClient, "something", types.ImagePullOptions{})
 			if err != nil {
 				if tc.testErr != nil {
 					if diff := cmp.Diff(err.Error(), tc.testErr.Error()); diff != "" {
