@@ -407,13 +407,15 @@ func TestReconciler(t *testing.T) {
 		},
 	}
 
-	type controllerStop struct {
-		Level   string  `json:"level"`
-		Ts      float64 `json:"ts"`
-		Caller  string  `json:"caller"`
-		Msg     string  `json:"msg"`
-		Service string  `json:"service"`
-	}
+	/*
+		type controllerStop struct {
+			Level   string  `json:"level"`
+			Ts      float64 `json:"ts"`
+			Caller  string  `json:"caller"`
+			Msg     string  `json:"msg"`
+			Service string  `json:"service"`
+		}
+	*/
 
 	capturedOutput := captureOutput(func() {
 		ctx, cancel := context.WithCancel(context.Background())
