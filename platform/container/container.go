@@ -1,4 +1,3 @@
-// build +linux
 package container
 
 import (
@@ -48,6 +47,7 @@ func CreateContainer(ctx context.Context, dockerClient client.ContainerAPIClient
 	return resp.ID, nil
 }
 
+// ContainerGetLogs returns the logs of a container
 func ContainerGetLogs(ctx context.Context, dockerClient client.ContainerAPIClient, containerID string, options types.ContainerLogsOptions) (string, error) {
 	reader, err := dockerClient.ContainerLogs(ctx, containerID, options)
 	if err != nil {

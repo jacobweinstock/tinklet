@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// TimeoutError time out errors
 type TimeoutError struct {
 	TimeoutValue time.Duration
 }
@@ -13,6 +14,7 @@ func (t *TimeoutError) Error() string {
 	return fmt.Sprintf("timeout reached: %v", t.TimeoutValue)
 }
 
+// ExecutionError execution errors
 type ExecutionError struct {
 	Stdout   string
 	ExitCode int

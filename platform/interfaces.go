@@ -1,11 +1,6 @@
 package platform
 
-import (
-	"context"
-
-	"github.com/tinkerbell/tink/protos/workflow"
-)
-
+/*
 type WorkerIDGetter interface {
 	// label is either IP or MAC. This is used to get the workerID which is just the hardware data ID
 	GetWorkerID(ctx context.Context, label string) (workerID string, err error)
@@ -33,3 +28,4 @@ type ActionRunner interface {
 type StatusReporter interface {
 	ReportStatus(ctx context.Context, status *workflow.WorkflowActionStatus) error
 }
+*/
