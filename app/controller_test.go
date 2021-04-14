@@ -130,9 +130,9 @@ type clientMockHelper struct {
 }
 
 type mockContainerCreate struct {
-	createErr      error
-	createID       string
-	createWarnings []string
+	createErr error
+	createID  string
+	//createWarnings []string
 }
 
 type mockContainerStart struct {
@@ -155,7 +155,7 @@ func (t *mockClient) ImagePull(ctx context.Context, ref string, options types.Im
 }
 
 func (t *mockClient) ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *specs.Platform, containerName string) (container.ContainerCreateCreatedBody, error) {
-	return container.ContainerCreateCreatedBody{ID: t.mock.createID, Warnings: t.mock.createWarnings}, t.mock.createErr
+	return container.ContainerCreateCreatedBody{ID: t.mock.createID, Warnings: []string{}}, t.mock.createErr
 }
 
 func (t *mockClient) ContainerStart(ctx context.Context, container string, options types.ContainerStartOptions) error {
