@@ -6,10 +6,11 @@ package tink
 import (
 	context "context"
 
+	sync "sync"
+
 	"github.com/tinkerbell/tink/protos/workflow"
 	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	sync "sync"
 )
 
 // Ensure, that WorkflowServiceClientMock does implement WorkflowServiceClient.

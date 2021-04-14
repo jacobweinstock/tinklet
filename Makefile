@@ -20,6 +20,15 @@ lint:  ## Run linting
 	@echo be sure golangci-lint is installed: https://golangci-lint.run/usage/install/
 	golangci-lint run
 
+.PHONY: goimports
+goimports: ## run goimports updating files in place
+	@echo be sure goimports is installed
+	goimports -w .
+
+.PHONY: all-checks
+all-checks: cover lint goimports ## run all tests and formatters
+	go vet ./...
+
 .PHONY: linux
 linux: ## Compile for linux
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags '-s -w -extldflags "-static"' -o bin/${BINARY}-linux main.go

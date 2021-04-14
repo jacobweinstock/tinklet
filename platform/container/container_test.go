@@ -142,47 +142,48 @@ func TestCreateContainer(t *testing.T) {
 	}
 }
 
-func TestContainerWait(t *testing.T) {
-
+func TestContainerRunComplete(t *testing.T) {
 	tests := map[string]struct {
-		expectedContainerID string
-		expectedWarnings    []string
-		expectedInspectErr  error
-		expectedLogsErr     error
-		expectedStdout      string
-		expectedState       *types.ContainerState
-		timeout             time.Duration
+		expectedContainerID             string
+		expectedWarnings                []string
+		expectedInspectErr              error
+		expectedLogsErr                 error
+		expectedContainerRunCompleteErr error
+		expectedStdout                  string
+		expectedState                   *types.ContainerState
+		containerComplete               bool
 	}{
-		"success": {expectedContainerID: "12345", expectedState: &types.ContainerState{Status: "exited", ExitCode: 0}},
-		"error":   {expectedContainerID: "12345", expectedState: &types.ContainerState{Status: "exited", ExitCode: 127}, expectedStdout: "error running command", expectedLogsErr: errors.New("container execution was unsuccessful; exit code: 127; state err: ; logs err: test: test")},
-		//"error: timeout": {expectedContainerID: "12345", expectedInspectErr: errors.New("context timeout"), timeout: time.Nanosecond},
+		"success":                    {expectedContainerID: "12345", expectedState: &types.ContainerState{Status: "exited", ExitCode: 0}, containerComplete: true},
+		"error inspecting container": {expectedContainerID: "12345", expectedState: &types.ContainerState{Status: "exited", ExitCode: 127}, containerComplete: false, expectedInspectErr: errors.New("unable to inspect container"), expectedContainerRunCompleteErr: errors.Wrap(errors.New("unable to inspect container"), "unable to inspect container")},
+		"container not complete":     {expectedContainerID: "12345", expectedState: &types.ContainerState{Status: "running", ExitCode: 0}, containerComplete: false},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			stringReader := strings.NewReader(tc.expectedStdout)
+			//stringReader := strings.NewReader(tc.expectedStdout)
 			helper := clientMockHelper{
 				mockContainerInspect: mockContainerInspect{
-					inspectErr:   nil,
+					inspectErr:   tc.expectedInspectErr,
 					inspectID:    tc.expectedContainerID,
 					inspectState: tc.expectedState,
 				},
-				mockContainerLogs: mockContainerLogs{
+				/*mockContainerLogs: mockContainerLogs{
 					logsReadCloser: io.NopCloser(stringReader),
 					logsErr:        tc.expectedLogsErr,
-				},
+				},*/
 			}
 			mClient := mockClient{mock: helper}
-			err := ContainerWaiter(context.Background(), &mClient, time.Duration(2), tc.expectedContainerID)
+			complete, _, err := ContainerRunComplete(context.Background(), &mClient, tc.expectedContainerID)
 			if err != nil {
-				if tc.expectedLogsErr != nil {
-					if diff := cmp.Diff(err.Error(), tc.expectedLogsErr.Error()); diff != "" {
-						t.Log(err.Error())
-						t.Log(tc.expectedLogsErr.Error())
+				if tc.expectedContainerRunCompleteErr != nil {
+					if diff := cmp.Diff(err.Error(), tc.expectedContainerRunCompleteErr.Error()); diff != "" {
 						t.Fatal(diff)
 					}
 				} else {
 					t.Fatal(err)
 				}
+			}
+			if diff := cmp.Diff(complete, tc.containerComplete); diff != "" {
+				t.Fatal(diff)
 			}
 		})
 	}

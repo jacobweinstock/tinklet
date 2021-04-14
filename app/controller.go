@@ -46,6 +46,8 @@ func ReportActionStatusController(ctx context.Context, log logr.Logger, sharedWg
 // 1. is there a workflow task to execute?
 // 1a. if yes - get workflow tasks based on workflowID and workerID
 // 1b. if no - ask again later
+// TODO: assume action executions are idempotent, meaning keep trying them until they they succeed
+// TODO; make action executions declarative, meaning we can determine current status and desired state. allows retrying executions
 func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerClient client.CommonAPIClient, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, stopControllerWg *sync.WaitGroup) {
 	initialLog := log
 	for {
@@ -85,7 +87,7 @@ func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerC
 			}
 			for _, elem := range acts {
 				actionLog := log.WithValues("action", &elem)
-				workflowClient.ReportActionStatus(ctx, &workflow.WorkflowActionStatus{
+				_, reportErr := workflowClient.ReportActionStatus(ctx, &workflow.WorkflowActionStatus{
 					WorkflowId:   id.GetWorkflowId(),
 					TaskName:     elem.TaskName,
 					ActionName:   elem.Name,
@@ -95,6 +97,10 @@ func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerC
 					CreatedAt:    &timestamppb.Timestamp{},
 					WorkerId:     workerID,
 				})
+				if reportErr != nil {
+					// we only log here because we prefer the running of actions over being able to report them
+					actionLog.V(0).Error(reportErr, "error sending action status report")
+				}
 				actionLog.V(0).Info("executing action")
 				start := time.Now()
 				err = ActionExecutionFlow(ctx, log, dockerClient, elem.Image,
@@ -107,7 +113,9 @@ func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerC
 				)
 				elapsed := time.Since(start)
 				actStatus := workflow.State_STATE_SUCCESS
+				var actionFailed bool
 				if err != nil {
+					actionFailed = true
 					actionLog.V(0).Error(err, "action completed with an error")
 					switch errors.Cause(err).(type) {
 					case *platform.TimeoutError:
@@ -116,7 +124,7 @@ func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerC
 						actStatus = workflow.State_STATE_FAILED
 					}
 				}
-				workflowClient.ReportActionStatus(ctx, &workflow.WorkflowActionStatus{
+				_, reportErr = workflowClient.ReportActionStatus(ctx, &workflow.WorkflowActionStatus{
 					WorkflowId:   id.GetWorkflowId(),
 					TaskName:     elem.TaskName,
 					ActionName:   elem.Name,
@@ -126,7 +134,13 @@ func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerC
 					CreatedAt:    &timestamppb.Timestamp{},
 					WorkerId:     workerID,
 				})
+				if reportErr != nil {
+					actionLog.V(0).Error(reportErr, "error sending action status report")
+				}
 				actionLog.V(0).Info("action complete", "err", err)
+				if actionFailed {
+					break
+				}
 			}
 		}
 	}
@@ -158,12 +172,33 @@ func ActionExecutionFlow(ctx context.Context, log logr.Logger, dockerClient clie
 		return errors.Wrap(&platform.ExecutionError{Msg: "starting container failed"}, err.Error())
 	}
 	// 5. Wait and watch for container exit status or timeout
-	err = container.ContainerWaiter(ctx, dockerClient, timeout, containerID)
-	if err != nil {
-		return errors.Wrap(&platform.ExecutionError{Msg: "waiting for container failed"}, err.Error())
+	timer := time.NewTimer(timeout)
+	var detail types.ContainerJSON
+LOOP:
+	for {
+		select {
+		case r := <-timer.C:
+			return &platform.TimeoutError{TimeoutValue: time.Duration(r.Unix())}
+		default:
+			var ok bool
+			ok, detail, err = container.ContainerRunComplete(ctx, dockerClient, containerID)
+			if err != nil {
+				return errors.Wrap(&platform.ExecutionError{Msg: "waiting for container failed"}, err.Error())
+			}
+			if ok {
+				break LOOP
+			}
+		}
 	}
+	return container.ContainerRunSuccessful(ctx, dockerClient, detail, containerID)
+	/*
+		err = container.ContainerWaiter(ctx, dockerClient, time.NewTimer(timeout), containerID)
+		if err != nil {
+			return errors.Wrap(&platform.ExecutionError{Msg: "waiting for container failed"}, err.Error())
+		}
 
-	return nil
+		return nil
+	*/
 }
 
 // there are 2 overall processes that need to happen

@@ -3,7 +3,6 @@ package tink
 import (
 	"context"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
@@ -137,6 +136,7 @@ func GetActionsList(ctx context.Context, workflowID string, workflowClient workf
 	return acts, nil
 }
 
+/*
 // FilterWorkflowsByMac will return only workflows whose hardware devices contains the given mac
 func FilterWorkflowsByMac(mac string) workflowsFilterByFunc {
 	return func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
@@ -149,6 +149,7 @@ func FilterWorkflowsByMac(mac string) workflowsFilterByFunc {
 		return filteredWorkflows
 	}
 }
+*/
 
 // filterWorkflowsByMac will return only workflows whose hardware devices contains the given mac
 func FilterActionsByWorkerID(id string) actionsFilterByFunc {
@@ -163,6 +164,7 @@ func FilterActionsByWorkerID(id string) actionsFilterByFunc {
 	}
 }
 
+/*
 // FilterByComplete will return workflows that finished. Finished is if all actions in a workflow are completed.
 func FilterByComplete() workflowsFilterByFunc {
 	return func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
@@ -182,3 +184,4 @@ func FilterByComplete() workflowsFilterByFunc {
 		return filteredWorkflows
 	}
 }
+*/
