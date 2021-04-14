@@ -48,7 +48,7 @@ func ReportActionStatusController(ctx context.Context, log logr.Logger, sharedWg
 // 1b. if no - ask again later
 // TODO: assume action executions are idempotent, meaning keep trying them until they they succeed
 // TODO; make action executions declarative, meaning we can determine current status and desired state. allows retrying executions
-func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerClient client.CommonAPIClient, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, stopControllerWg *sync.WaitGroup) {
+func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerClient Client, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, stopControllerWg *sync.WaitGroup) {
 	initialLog := log
 	for {
 		log = initialLog
@@ -146,6 +146,11 @@ func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerC
 	}
 }
 
+type Client interface {
+	client.ContainerAPIClient
+	client.ImageAPIClient
+}
+
 // business/domain logic for executing an action
 // =============================================
 // 1. Pull the image
@@ -153,7 +158,7 @@ func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerC
 // 3. Start the container
 // 4. Removal of container is go "deferred"
 // 5. Wait and watch for container exit status or timeout
-func ActionExecutionFlow(ctx context.Context, log logr.Logger, dockerClient client.CommonAPIClient, imageName string, pullOpts types.ImagePullOptions, containerConfig *tainer.Config, hostConfig *tainer.HostConfig, containerName string, timeout time.Duration) error {
+func ActionExecutionFlow(ctx context.Context, log logr.Logger, dockerClient Client, imageName string, pullOpts types.ImagePullOptions, containerConfig *tainer.Config, hostConfig *tainer.HostConfig, containerName string, timeout time.Duration) error {
 	// 1. Pull the image
 	err := container.PullImage(ctx, dockerClient, imageName, pullOpts)
 	if err != nil {
@@ -181,7 +186,7 @@ LOOP:
 			return &platform.TimeoutError{TimeoutValue: time.Duration(r.Unix())}
 		default:
 			var ok bool
-			ok, detail, err = container.ContainerRunComplete(ctx, dockerClient, containerID)
+			ok, detail, err = container.ContainerExecComplete(ctx, dockerClient, containerID)
 			if err != nil {
 				return errors.Wrap(&platform.ExecutionError{Msg: "waiting for container failed"}, err.Error())
 			}
@@ -190,15 +195,17 @@ LOOP:
 			}
 		}
 	}
-	return container.ContainerRunSuccessful(ctx, dockerClient, detail, containerID)
-	/*
-		err = container.ContainerWaiter(ctx, dockerClient, time.NewTimer(timeout), containerID)
-		if err != nil {
-			return errors.Wrap(&platform.ExecutionError{Msg: "waiting for container failed"}, err.Error())
-		}
 
+	if detail.ContainerJSONBase == nil {
+		return errors.New("container details was nil, cannot tell success or failure status without these details")
+	}
+	// container execution completed successfully
+	if detail.State.ExitCode == 0 {
 		return nil
-	*/
+	} else {
+		logs, _ := container.ContainerGetLogs(ctx, dockerClient, containerID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
+		return fmt.Errorf("msg: container execution was unsuccessful; logs: %v;  exitCode: %v; details: %v", logs, detail.State.ExitCode, detail.State.Error)
+	}
 }
 
 // there are 2 overall processes that need to happen

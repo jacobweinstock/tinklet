@@ -136,21 +136,6 @@ func GetActionsList(ctx context.Context, workflowID string, workflowClient workf
 	return acts, nil
 }
 
-/*
-// FilterWorkflowsByMac will return only workflows whose hardware devices contains the given mac
-func FilterWorkflowsByMac(mac string) workflowsFilterByFunc {
-	return func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
-		var filteredWorkflows []*workflow.Workflow
-		for _, elem := range workflows {
-			if strings.Contains(elem.Hardware, mac) {
-				filteredWorkflows = append(filteredWorkflows, elem)
-			}
-		}
-		return filteredWorkflows
-	}
-}
-*/
-
 // filterWorkflowsByMac will return only workflows whose hardware devices contains the given mac
 func FilterActionsByWorkerID(id string) actionsFilterByFunc {
 	return func(actions []*workflow.WorkflowAction) []*workflow.WorkflowAction {
@@ -163,25 +148,3 @@ func FilterActionsByWorkerID(id string) actionsFilterByFunc {
 		return filteredActions
 	}
 }
-
-/*
-// FilterByComplete will return workflows that finished. Finished is if all actions in a workflow are completed.
-func FilterByComplete() workflowsFilterByFunc {
-	return func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-		var filteredWorkflows []*workflow.Workflow
-		for _, elem := range workflows {
-			state, err := workflowClient.GetWorkflowContext(ctx, &workflow.GetRequest{Id: elem.Id})
-			if err != nil {
-				continue
-			}
-			// as long as the workflow is not done or timed out we add it to the list
-			if state.CurrentActionIndex+1 != state.TotalNumberOfActions {
-				filteredWorkflows = append(filteredWorkflows, elem)
-			}
-		}
-		return filteredWorkflows
-	}
-}
-*/

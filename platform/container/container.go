@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 
 	"github.com/docker/docker/api/types"
@@ -49,29 +48,21 @@ func CreateContainer(ctx context.Context, dockerClient client.ContainerAPIClient
 	return resp.ID, nil
 }
 
-// ContainerRunSuccessful will return nil if it completed successfully. will return an error with context for non successful container runs.
-// Assumes a container is no longer running. Use ContainerRunComplete to check for running status
-func ContainerRunSuccessful(ctx context.Context, dockerClient client.ContainerAPIClient, containerDetail types.ContainerJSON, containerID string) error {
-	// container execution completed successfully
-	if containerDetail.State.ExitCode == 0 {
-		return nil
-	} else {
-		stdout, err := dockerClient.ContainerLogs(ctx, containerID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
-		if err != nil {
-			return err
-			//return false, errors.Wrapf(err, "container execution was unsuccessful; exit code: %v; state err: %v; logs err: %v", details.State.ExitCode, details.State.Error, err.Error())
-		}
-		defer stdout.Close()
-		buf := new(bytes.Buffer)
-		// TODO: handle error? or keep ignoring?
-		_, _ = buf.ReadFrom(stdout)
-		newStr := buf.String()
-		return fmt.Errorf("msg: container execution was unsuccessful; stdout: %v;  exitCode: %v; details: %v", newStr, containerDetail.State.ExitCode, containerDetail.State.Error)
+func ContainerGetLogs(ctx context.Context, dockerClient client.ContainerAPIClient, containerID string, options types.ContainerLogsOptions) (string, error) {
+	reader, err := dockerClient.ContainerLogs(ctx, containerID, options)
+	if err != nil {
+		return "", err
 	}
+	defer reader.Close()
+	buf := new(bytes.Buffer)
+	_, err = buf.ReadFrom(reader)
+	stdout := buf.String()
+	return stdout, err
 }
 
-// ContainerRunComplete checks if a container run has completed or not
-func ContainerRunComplete(ctx context.Context, dockerClient client.ContainerAPIClient, containerID string) (complete bool, details types.ContainerJSON, err error) {
+// ContainerExecComplete checks if a container run has completed or not. completed is defined as having an "exited" or "dead" status.
+// see types.ContainerJSON.State.Status for all status options
+func ContainerExecComplete(ctx context.Context, dockerClient client.ContainerAPIClient, containerID string) (complete bool, details types.ContainerJSON, err error) {
 	detail, err := dockerClient.ContainerInspect(ctx, containerID)
 	if err != nil {
 		return false, types.ContainerJSON{}, errors.Wrap(err, "unable to inspect container")

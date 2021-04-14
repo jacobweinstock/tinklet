@@ -8,6 +8,7 @@ require (
 	github.com/google/go-cmp v0.5.5
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/jacobweinstock/goconfig v0.2.1
+	github.com/kami-zh/go-capturer v0.0.0-20171211120116-e492ea43421d
 	github.com/moby/term v0.0.0-20201216013528-df9cb8a40635 // indirect
 	github.com/opencontainers/image-spec v1.0.1
 	github.com/packethost/pkg/log/logr v0.0.0-20210325161133-868299771ae0
