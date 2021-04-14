@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -21,6 +22,9 @@ import (
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/packethost/pkg/log/logr"
 	"github.com/pkg/errors"
+	"github.com/tinkerbell/tink/protos/hardware"
+	"github.com/tinkerbell/tink/protos/workflow"
+	"google.golang.org/grpc"
 )
 
 func TestReportActionStatusController(t *testing.T) {
@@ -75,13 +79,10 @@ func TestReportActionStatusController(t *testing.T) {
 		doneWg.Wait()
 	})
 	var capturedOutputs []output
-
 	for _, elem := range capturedOutput {
 		var capturedOutputStruct output
 		err := json.Unmarshal([]byte(elem), &capturedOutputStruct)
 		if err != nil {
-			t.Log(elem)
-			t.Log(capturedOutput)
 			t.Fatal(err)
 		}
 		capturedOutputs = append(capturedOutputs, capturedOutputStruct)
@@ -342,4 +343,244 @@ func TestActionExecutionFlowSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestReconciler(t *testing.T) {
+	type action struct {
+		TaskName string   `json:"task_name"`
+		Name     string   `json:"name"`
+		Image    string   `json:"image"`
+		Command  []string `json:"command"`
+		WorkerID string   `json:"worker_id"`
+	}
+	type actionOutput struct {
+		Level    string      `json:"level"`
+		Ts       float64     `json:"ts"`
+		Caller   string      `json:"caller"`
+		Msg      string      `json:"msg"`
+		Service  string      `json:"service"`
+		WorkerID string      `json:"workerID"`
+		Action   action      `json:"action"`
+		Err      interface{} `json:"err"`
+	}
+
+	expectedOutput := []actionOutput{
+		{
+			Level:    "info",
+			Ts:       0,
+			Caller:   "app/controller.go:104",
+			Msg:      "executing action",
+			Service:  "not/set",
+			WorkerID: "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a94",
+			Action: action{
+				TaskName: "os-install",
+				Name:     "start",
+				Image:    "alpine",
+				Command: []string{
+					"/bin/sh",
+					"sleep",
+					"1",
+				},
+				WorkerID: "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a94",
+			},
+			Err: nil,
+		},
+		{
+			Level:    "info",
+			Ts:       0,
+			Caller:   "app/controller.go:140",
+			Msg:      "action complete",
+			Service:  "not/set",
+			WorkerID: "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a94",
+			Action: action{
+				TaskName: "os-install",
+				Name:     "start",
+				Image:    "alpine",
+				Command: []string{
+					"/bin/sh",
+					"sleep",
+					"1",
+				},
+				WorkerID: "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a94",
+			},
+			Err: nil,
+		},
+	}
+
+	type controllerStop struct {
+		Level   string  `json:"level"`
+		Ts      float64 `json:"ts"`
+		Caller  string  `json:"caller"`
+		Msg     string  `json:"msg"`
+		Service string  `json:"service"`
+	}
+
+	capturedOutput := captureOutput(func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		log, _, _ := logr.NewPacketLogr()
+		var controllerWg sync.WaitGroup
+		identifier := "192.168.1.12"
+
+		stringReader := strings.NewReader("{\"error\":\"\"}")
+		dockerClient := mockClient{
+			mock: clientMockHelper{
+				stringReadCloser: io.NopCloser(stringReader),
+				mockContainerCreate: mockContainerCreate{
+					createID: "12345",
+				},
+				mockContainerStart: mockContainerStart{
+					startErr: nil,
+				},
+				mockContainerInspect: mockContainerInspect{
+					inspectID: "12345",
+					inspectState: &types.ContainerState{
+						Status:   "exited",
+						ExitCode: 0,
+					},
+				},
+			},
+		}
+		mock := &hardwareServerMock{}
+		hardwareClient := mock.getMockedHardwareServiceClient()
+		mockr := mocker{numWorkflowsToMock: 1, numContextsToMock: 1}
+		workflowClient := mockr.getMockedWorkflowServiceClient()
+
+		controllerWg.Add(1)
+		go Reconciler(ctx, log, identifier, &dockerClient, workflowClient, hardwareClient, &controllerWg)
+		time.Sleep(5 * time.Second)
+		cancel()
+		<-ctx.Done()
+		controllerWg.Wait()
+	})
+
+	var capturedOutputs []actionOutput
+	for _, elem := range capturedOutput {
+		var capturedOutputStruct actionOutput
+		err := json.Unmarshal([]byte(elem), &capturedOutputStruct)
+		t.Log(capturedOutputStruct)
+		if err == nil {
+			if capturedOutputStruct.WorkerID != "" {
+				capturedOutputs = append(capturedOutputs, capturedOutputStruct)
+			}
+		}
+	}
+
+	for index, elem := range capturedOutputs {
+		if diff := cmp.Diff(elem, expectedOutput[index], cmpopts.IgnoreFields(actionOutput{}, "Ts")); diff != "" {
+			t.Fatal(diff)
+		}
+	}
+}
+
+type hardwareServerMock struct{}
+
+func (h *hardwareServerMock) getMockedHardwareServiceClient() *hardware.HardwareServiceClientMock {
+	var hardwareSvcClient hardware.HardwareServiceClientMock
+
+	hardwareSvcClient.ByMACFunc = func(ctx context.Context, in *hardware.GetRequest, opts ...grpc.CallOption) (*hardware.Hardware, error) {
+		return &hardware.Hardware{Id: "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a94"}, nil
+	}
+
+	hardwareSvcClient.ByIPFunc = func(ctx context.Context, in *hardware.GetRequest, opts ...grpc.CallOption) (*hardware.Hardware, error) {
+		return &hardware.Hardware{Id: "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a94"}, nil
+	}
+
+	return &hardwareSvcClient
+}
+
+type mocker struct {
+	failListWorkflows         bool
+	failListWorkflowsRecvFunc bool
+	failGetWorkflowActions    bool
+	failGetWorkflowContexts   bool
+	numWorkflowsToMock        int
+	numContextsToMock         int
+	start                     int
+}
+
+func (m *mocker) getMockedWorkflowServiceClient() *workflow.WorkflowServiceClientMock {
+	var workflowSvcClient workflow.WorkflowServiceClientMock
+	var recvFunc workflow.WorkflowService_ListWorkflowsClientMock
+
+	recvFunc.RecvFunc = func() (*workflow.Workflow, error) {
+		if m.start == m.numWorkflowsToMock {
+			return nil, io.EOF
+		}
+		m.start++
+		return &workflow.Workflow{Id: fmt.Sprintf("%v", m.start)}, nil
+	}
+	workflowSvcClient.ListWorkflowsFunc = func(ctx context.Context, in *workflow.Empty, opts ...grpc.CallOption) (workflow.WorkflowService_ListWorkflowsClient, error) {
+		return &recvFunc, nil
+	}
+
+	if m.failListWorkflows {
+		workflowSvcClient.ListWorkflowsFunc = func(ctx context.Context, in *workflow.Empty, opts ...grpc.CallOption) (workflow.WorkflowService_ListWorkflowsClient, error) {
+			return nil, errors.New("failed")
+		}
+	}
+	workflowSvcClient.ReportActionStatusFunc = func(ctx context.Context, in *workflow.WorkflowActionStatus, opts ...grpc.CallOption) (*workflow.Empty, error) {
+		return &workflow.Empty{}, nil
+	}
+
+	if m.failListWorkflowsRecvFunc {
+		recvFunc.RecvFunc = func() (*workflow.Workflow, error) {
+			if m.start == m.numWorkflowsToMock {
+				return nil, io.EOF
+			}
+			m.start++
+			return nil, errors.New("failed")
+		}
+		workflowSvcClient.ListWorkflowsFunc = func(ctx context.Context, in *workflow.Empty, opts ...grpc.CallOption) (workflow.WorkflowService_ListWorkflowsClient, error) {
+			return &recvFunc, nil
+		}
+	}
+
+	workflowSvcClient.GetWorkflowActionsFunc = func(ctx context.Context, in *workflow.WorkflowActionsRequest, opts ...grpc.CallOption) (*workflow.WorkflowActionList, error) {
+		var err error
+		resp := &workflow.WorkflowActionList{
+			ActionList: []*workflow.WorkflowAction{
+				&workflow.WorkflowAction{
+					TaskName: "os-install",
+					Name:     "start",
+					Image:    "alpine",
+					Timeout:  0,
+					Command:  []string{"/bin/sh", "sleep", "1"},
+					WorkerId: "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a94",
+				},
+			},
+		}
+		if m.failGetWorkflowActions {
+			resp = nil
+			err = errors.New("ah bad!")
+		}
+		return resp, err
+	}
+
+	workflowSvcClient.GetWorkflowContextsFunc = func(ctx context.Context, in *workflow.WorkflowContextRequest, opts ...grpc.CallOption) (workflow.WorkflowService_GetWorkflowContextsClient, error) {
+		var recvFuncContexts WorkflowService_GetWorkflowContextsClientMock
+		recvFuncContexts.RecvFunc = func() (*workflow.WorkflowContext, error) {
+			if m.start == m.numContextsToMock {
+				return nil, io.EOF
+			}
+			m.start++
+			return &workflow.WorkflowContext{
+				WorkflowId:           "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a94",
+				CurrentWorker:        "",
+				CurrentTask:          "",
+				CurrentAction:        "",
+				CurrentActionIndex:   0,
+				CurrentActionState:   0,
+				TotalNumberOfActions: 0,
+			}, nil
+		}
+		return &recvFuncContexts, nil
+	}
+	if m.failGetWorkflowContexts {
+		workflowSvcClient.GetWorkflowContextsFunc = func(ctx context.Context, in *workflow.WorkflowContextRequest, opts ...grpc.CallOption) (workflow.WorkflowService_GetWorkflowContextsClient, error) {
+			return nil, errors.New("failed")
+		}
+	}
+
+	return &workflowSvcClient
 }

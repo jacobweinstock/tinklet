@@ -20,6 +20,7 @@ func Execute(ctx context.Context) error {
 	config := configuration{
 		LogLevel: "info",
 	}
+
 	cfgParser := goconfig.NewParser(
 		goconfig.WithPrefix("TINKLET"),
 		goconfig.WithFile("tinklet.yaml"),
