@@ -17,7 +17,7 @@ cover: ## Run unit tests with coverage report
 
 .PHONY: cover-ci
 cover-ci: ## Run unit tests with coverage report for CI system
-	go test -coverprofile=coverage.txt ./...
+	go test -race -covermode=atomic -coverprofile=coverage.txt ./...
 
 .PHONY: lint
 lint:  ## Run linting
