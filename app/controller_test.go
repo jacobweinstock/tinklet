@@ -542,7 +542,7 @@ func (m *mocker) getMockedWorkflowServiceClient() *workflow.WorkflowServiceClien
 		var err error
 		resp := &workflow.WorkflowActionList{
 			ActionList: []*workflow.WorkflowAction{
-				&workflow.WorkflowAction{
+				{
 					TaskName: "os-install",
 					Name:     "start",
 					Image:    "alpine",
