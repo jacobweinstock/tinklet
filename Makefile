@@ -15,6 +15,10 @@ cover: ## Run unit tests with coverage report
 	go tool cover -func=cover.out
 	rm -rf cover.out
 
+.PHONY: cover-ci
+cover-ci: ## Run unit tests with coverage report for CI system
+	go test -coverprofile=coverage.txt ./...
+
 .PHONY: lint
 lint:  ## Run linting
 	@echo be sure golangci-lint is installed: https://golangci-lint.run/usage/install/

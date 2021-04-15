@@ -22,7 +22,9 @@ jobs:
         args: -v -D errcheck
     - name: goimports
       run: go get golang.org/x/tools/cmd/goimports && make goimports-check
-    - name: go test
-      run: make test
+    - name: code coverage
+      run: make cover-ci
+    - name: upload codecov
+      run: bash <(curl -s https://codecov.io/bash)
     - name: go build
       run: make build
