@@ -137,7 +137,7 @@ func GetActionsList(ctx context.Context, workflowID string, workflowClient workf
 	return acts, nil
 }
 
-// filterWorkflowsByMac will return only workflows whose hardware devices contains the given mac
+// FilterActionsByWorkerID will return only workflows whose hardware devices contains the given mac
 func FilterActionsByWorkerID(id string) actionsFilterByFunc {
 	return func(actions []*workflow.WorkflowAction) []*workflow.WorkflowAction {
 		var filteredActions []*workflow.WorkflowAction
