@@ -25,4 +25,4 @@ jobs:
     - name: go test
       run: make test
     - name: go build
-      run: go mod tidy; make build
+      run: make build
