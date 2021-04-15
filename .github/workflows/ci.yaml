@@ -1,4 +1,4 @@
-name: For each commit and PR
+name: Test and Build
 on:
   push:
   pull_request:
@@ -24,3 +24,5 @@ jobs:
       run: go get golang.org/x/tools/cmd/goimports && make goimports-check
     - name: go test
       run: make test
+    - name: go build
+      run: go mod tidy; make build
