@@ -10,6 +10,7 @@ RUN make build
 FROM scratch
 USER tinklet
 
+COPY scripts/etc-passwd /etc/passwd
 COPY --from=builder /code/bin/tinklet-linux /tinklet-linux
 
 ENTRYPOINT ["/tinklet-linux"]
