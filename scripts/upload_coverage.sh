@@ -1,9 +1,18 @@
 #!/usr/bin/env bash
-
 # this scripts must be run from the root of the tinklet repo
+set -e
 
-go test -coverprofile=cover.out ./... > /dev/null || true
-percentage=$(go tool cover -func=cover.out | grep total | awk '{print $3}')
+file_totals=$(go test -coverprofile=cover.out ./...)
+out=$(go tool cover -func=cover.out)
+percentage=$(echo ${out} | grep total | awk '{print $3}')
+date_time=$(date -u)
+fullOut=$(echo "${date_time}
+====================================================================================================
+${file_totals}
+====================================================================================================
+${out}
+====================================================================================================
+")
 rm -rf cover.out
 
 # percentage will equal something like 92.4%
@@ -23,3 +32,6 @@ coverageJSON='{"schemaVersion":1, "label":"Code Coverage", "message":"'${percent
 echo ${coverageJSON}
 # this updates the following GIST: https://gist.github.com/jacobweinstock/9d00cc54b39121e62d88ab6e02cec6dd#file-branch-main-json
 (cd scripts/code_coverage && go run main.go -accesstoken ${GIST_TOKEN} -filename branch-main.json -id 9d00cc54b39121e62d88ab6e02cec6dd -content "${coverageJSON}")
+
+# this updates the following GIST: https://gist.github.com/jacobweinstock/9d00cc54b39121e62d88ab6e02cec6dd#file-branch-main-coverage
+(cd scripts/code_coverage && go run main.go -accesstoken ${GIST_TOKEN} -filename branch-main.coverage -id 9d00cc54b39121e62d88ab6e02cec6dd -content "${fullOut}")

@@ -26,5 +26,7 @@ jobs:
       run: make test
     - name: update code coverage badge
       run: make update-code-coverage-badge
+      with:
+        super_secret: ${{ secrets.GIST_TOKEN }}
     - name: go build
       run: make build
