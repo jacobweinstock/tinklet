@@ -15,9 +15,9 @@ cover: ## Run unit tests with coverage report
 	go tool cover -func=cover.out
 	rm -rf cover.out
 
-.PHONY: cover-ci
-cover-ci: ## Run unit tests with coverage report for CI system
-	CGO_ENABLED=1 go test -race -covermode=atomic -coverprofile=coverage.txt ./...
+.PHONY: update-code-coverage-badge
+update-code-coverage-badge: ## updates the code coverage badge, for use in CI
+	scripts/upload_coverage.sh
 
 .PHONY: lint
 lint:  ## Run linting
