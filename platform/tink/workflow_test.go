@@ -99,13 +99,10 @@ func TestGetActionsList(t *testing.T) {
 			var workflows []*workflow.WorkflowAction
 			var err error
 			if tc.filterByFunc != nil {
-				t.Log(workflows)
 				workflows, err = GetActionsList(ctx, "12345", tc.mock.getMockedWorkflowServiceClient(), tc.filterByFunc)
 			} else {
-				t.Log(workflows)
 				workflows, err = GetActionsList(ctx, "12345", tc.mock.getMockedWorkflowServiceClient())
 			}
-			t.Log(workflows)
 			if err != nil {
 				if tc.err != nil {
 					if diff := cmp.Diff(err.Error(), tc.err.Error()); diff != "" {

@@ -460,7 +460,6 @@ func TestReconciler(t *testing.T) {
 	for _, elem := range capturedOutput {
 		var capturedOutputStruct actionOutput
 		err := json.Unmarshal([]byte(elem), &capturedOutputStruct)
-		t.Log(capturedOutputStruct)
 		if err == nil {
 			if capturedOutputStruct.WorkerID != "" {
 				capturedOutputs = append(capturedOutputs, capturedOutputStruct)
