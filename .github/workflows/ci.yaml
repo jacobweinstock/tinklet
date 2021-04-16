@@ -22,8 +22,8 @@ jobs:
         args: -v -D errcheck
     - name: goimports
       run: go get golang.org/x/tools/cmd/goimports && make goimports-check
-    - name: code coverage
-      run: make cover-ci
+    - name: go test
+      run: make test
     - name: update code coverage badge
       run: make update-code-coverage-badge
     - name: go build
