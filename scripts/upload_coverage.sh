@@ -30,7 +30,7 @@ fi
 
 coverageJSON='{"schemaVersion":1, "label":"Code Coverage", "message":"'${percentage}'", "color":"'${coverageColor}'"}'
 echo ${coverageJSON}
-exit
+
 # this updates the following GIST: https://gist.github.com/jacobweinstock/9d00cc54b39121e62d88ab6e02cec6dd#file-branch-main-json
 (cd scripts/code_coverage && go run main.go -accesstoken ${GIST_TOKEN} -filename branch-main.json -id 9d00cc54b39121e62d88ab6e02cec6dd -content "${coverageJSON}")
 
