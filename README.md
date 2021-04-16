@@ -4,6 +4,8 @@
 [![Code Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/jacobweinstock/9d00cc54b39121e62d88ab6e02cec6dd/raw/branch-main.json)](https://gist.github.com/jacobweinstock/9d00cc54b39121e62d88ab6e02cec6dd#file-branch-main-coverage)
 [![Go Report Card](https://goreportcard.com/badge/github.com/jacobweinstock/tinklet)](https://goreportcard.com/report/github.com/jacobweinstock/tinklet)
 
+>:warning: This is a WIP as it is not a drop in replacement yet :warning:
+
 tinklet is a smaller and fully tested implementation of the [tinkerbell worker](https://docs.tinkerbell.org/services/tink-worker/)
 
 ## Usage
