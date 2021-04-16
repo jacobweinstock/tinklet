@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # this scripts must be run from the root of the tinklet repo
-set -e
+set -ex
 
 file_totals=$(go test -coverprofile=cover.out ./...)
 out=$(go tool cover -func=cover.out)
