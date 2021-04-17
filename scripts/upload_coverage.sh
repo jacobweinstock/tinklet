@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# this scripts must be run from the root of the tinklet repo
+# this script must be run from the root of the tinklet repo
+# this script must be run after a `make test-ci`
 set -ex
 
-file_totals=$(go test -coverprofile=cover.out ./...)
+file_totals=$(cat test.output)
 out=$(go tool cover -func=cover.out)
 percentage=$(echo ${out} | grep total | awk '{print $NF}')
 date_time=$(date -u)
@@ -13,7 +14,7 @@ ${file_totals}
 ${out}
 ====================================================================================================
 ")
-rm -rf cover.out
+rm -rf cover.out test.output
 
 # percentage will equal something like 92.4%
 # this sets baseNum to be everything before the decimal

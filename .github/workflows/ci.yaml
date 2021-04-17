@@ -23,7 +23,7 @@ jobs:
     - name: goimports
       run: go get golang.org/x/tools/cmd/goimports && make goimports-check
     - name: go test
-      run: make test
+      run: make test-ci
     - name: update code coverage badge
       run: make update-code-coverage-badge
       env:

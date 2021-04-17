@@ -9,6 +9,10 @@ help:
 test: ## Run unit tests
 	go test -v -covermode=count ./...
 
+.PHONY: test-ci
+test-ci: ## Run unit tests for CI
+	CGO_ENABLED=1 go test -race -covermode=atomic -coverprofile=cover.out ./... > test.output
+
 .PHONY: cover
 cover: ## Run unit tests with coverage report
 	go test -coverprofile=cover.out ./... || true
