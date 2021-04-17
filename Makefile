@@ -11,7 +11,7 @@ test: ## Run unit tests
 
 .PHONY: test-ci
 test-ci: ## Run unit tests for CI
-	CGO_ENABLED=1 go test -race -covermode=atomic -coverprofile=cover.out ./... > test.output
+	go test -race -coverprofile=cover.out ./... > test.output
 
 .PHONY: cover
 cover: ## Run unit tests with coverage report
