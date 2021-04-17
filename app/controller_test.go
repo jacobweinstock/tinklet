@@ -27,25 +27,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-func captureOutput(f func()) []string {
-	rescueStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-	f()
-	w.Close()
-	scanner := bufio.NewScanner(r)
-	var output []string
-	for scanner.Scan() {
-		output = append(output, scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
-	}
-	os.Stdout = rescueStdout
-
-	return output
-}
-
 type mockClient struct {
 	client.ContainerAPIClient
 	client.ImageAPIClient
@@ -104,6 +85,25 @@ func (t *mockClient) ContainerInspect(ctx context.Context, container string) (ty
 
 func (t *mockClient) ContainerLogs(ctx context.Context, container string, options types.ContainerLogsOptions) (io.ReadCloser, error) {
 	return t.mock.logsReadCloser, t.mock.logsErr
+}
+
+func captureOutput(f func()) []string {
+	rescueStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	f()
+	w.Close()
+	scanner := bufio.NewScanner(r)
+	var output []string
+	for scanner.Scan() {
+		output = append(output, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+	}
+	os.Stdout = rescueStdout
+
+	return output
 }
 
 func TestActionExecutionFlowPullFail(t *testing.T) {

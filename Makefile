@@ -58,6 +58,10 @@ else
 	@$(MAKE) darwin
 endif
 
+.PHONY: image
+image: ## Builds container image
+	docker build -t tinklet:local .
+
 PHONY: run-server
 run-server: ## run server locally
 ifeq (, $(shell which jq))
