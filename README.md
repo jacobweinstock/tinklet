@@ -6,7 +6,7 @@
 
 >:warning: This is a WIP as it is not a drop in replacement for [tink-worker](https://docs.tinkerbell.org/services/tink-worker/) yet :warning:
 
-tinklet is a smaller and fully tested implementation of the [tinkerbell worker](https://docs.tinkerbell.org/services/tink-worker/)
+tinklet is over 40% smaller and a fully tested implementation of the [tinkerbell worker](https://docs.tinkerbell.org/services/tink-worker/)
 
 ## Usage
 
