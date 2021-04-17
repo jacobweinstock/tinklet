@@ -20,29 +20,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// ReportActionStatusController is generic in that it the chan is just a func that returns an error
-// but currently only handles sending action status reports to tink server.
-// channel is a FIFO queue so we dont lose order. for the moment, only retry a ras (report action status) once.
-func ReportActionStatusController(ctx context.Context, log logr.Logger, sharedWg *sync.WaitGroup, rasChan chan func() error, doneWg *sync.WaitGroup) {
-	for {
-		select {
-		case <-ctx.Done():
-			log.V(0).Info("stopping report action status controller")
-			doneWg.Done()
-			return
-		case ras := <-rasChan:
-			err := ras()
-			if err != nil {
-				err := ras()
-				if err != nil {
-					log.V(0).Error(err, "reporting action status failed")
-				}
-			}
-			sharedWg.Done()
-		}
-	}
-}
-
 // Reconciler control loop for executing workflow task actions
 // 1. is there a workflow task to execute?
 // 1a. if yes - get workflow tasks based on workflowID and workerID
