@@ -21,8 +21,14 @@ rm -rf cover.out
 # needed for bash number comparisons
 baseNum=${percentage%.*}
 if [ "${baseNum}" -ge "80" ]; then
-  coverageColor=green
+  coverageColor=brightgreen
 elif [ "${baseNum}" -le "79" ] && [ "${baseNum}" -ge "70" ]; then
+  coverageColor=blue
+elif [ "${baseNum}" -le "69" ] && [ "${baseNum}" -ge "60" ]; then
+  coverageColor=orange
+elif [ "${baseNum}" -le "59" ] && [ "${baseNum}" -ge "50" ]; then
+  coverageColor=lightgrey
+elif [ "${baseNum}" -le "49" ] && [ "${baseNum}" -ge "40" ]; then
   coverageColor=yellow
 else
   coverageColor=red
