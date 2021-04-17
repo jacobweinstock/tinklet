@@ -11,9 +11,8 @@ import (
 	tainer "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/go-logr/logr"
-	"github.com/jacobweinstock/tinklet/platform"
-	"github.com/jacobweinstock/tinklet/platform/container"
-	"github.com/jacobweinstock/tinklet/platform/tink"
+	"github.com/jacobweinstock/tinklet/pkg/container"
+	"github.com/jacobweinstock/tinklet/pkg/tink"
 	"github.com/pkg/errors"
 	"github.com/tinkerbell/tink/protos/hardware"
 	"github.com/tinkerbell/tink/protos/workflow"
@@ -96,7 +95,7 @@ func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerC
 					actionFailed = true
 					actionLog.V(0).Error(err, "action completed with an error")
 					switch errors.Cause(err).(type) {
-					case *platform.TimeoutError:
+					case *TimeoutError:
 						actStatus = workflow.State_STATE_TIMEOUT
 					default:
 						actStatus = workflow.State_STATE_FAILED
@@ -140,18 +139,18 @@ type dClient interface {
 func ActionExecutionFlow(ctx context.Context, log logr.Logger, dockerClient dClient, imageName string, pullOpts types.ImagePullOptions, containerConfig *tainer.Config, hostConfig *tainer.HostConfig, containerName string, timeout time.Duration) error {
 	// 1. Pull the image
 	if err := container.PullImage(ctx, dockerClient, imageName, pullOpts); err != nil {
-		return errors.Wrap(&platform.ExecutionError{Msg: "image pull failed"}, err.Error())
+		return errors.Wrap(&ExecutionError{Msg: "image pull failed"}, err.Error())
 	}
 	// 2. create container
 	containerID, err := container.CreateContainer(ctx, dockerClient, containerName, containerConfig, hostConfig)
 	if err != nil {
-		return errors.Wrap(&platform.ExecutionError{Msg: "creating container failed"}, err.Error())
+		return errors.Wrap(&ExecutionError{Msg: "creating container failed"}, err.Error())
 	}
 	// 3. Removal of container is go "deferred"
 	defer dockerClient.ContainerRemove(ctx, containerID, types.ContainerRemoveOptions{Force: true}) // nolint
 	// 4. Start container
 	if err = dockerClient.ContainerStart(ctx, containerID, types.ContainerStartOptions{}); err != nil {
-		return errors.Wrap(&platform.ExecutionError{Msg: "starting container failed"}, err.Error())
+		return errors.Wrap(&ExecutionError{Msg: "starting container failed"}, err.Error())
 	}
 	// 5. Wait and watch for container exit status or timeout
 	timer := time.NewTimer(timeout)
@@ -160,12 +159,12 @@ LOOP:
 	for {
 		select {
 		case r := <-timer.C:
-			return &platform.TimeoutError{TimeoutValue: time.Duration(r.Unix())}
+			return &TimeoutError{TimeoutValue: time.Duration(r.Unix())}
 		default:
 			var ok bool
 			ok, detail, err = container.ContainerExecComplete(ctx, dockerClient, containerID)
 			if err != nil {
-				return errors.Wrap(&platform.ExecutionError{Msg: "waiting for container failed"}, err.Error())
+				return errors.Wrap(&ExecutionError{Msg: "waiting for container failed"}, err.Error())
 			}
 			if ok {
 				break LOOP

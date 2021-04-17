@@ -18,20 +18,20 @@ Run the help command to see the cli options `tinklet -h`
   <summary>tinklet:</summary>
 
 ```bash
--------------------------------------------------------------------------------------
-File                               files          blank        comment           code
--------------------------------------------------------------------------------------
-./app/controller.go                                   9             28            148
-./platform/tink/workflow.go                          13             10             89
-./cmd/tinklet.go                                     10             10             62
-./platform/container/container.go                     7              6             62
-./main.go                                             7              0             34
-./platform/tink/hardware.go                           7              6             30
-./platform/errors.go                                  5              2             20
-./cmd/config.go                                       1              1             12
--------------------------------------------------------------------------------------
-TOTAL                                  8             59             63            457
--------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+File                          files          blank        comment           code
+--------------------------------------------------------------------------------
+./app/controller.go                              9             28            147
+./pkg/tink/workflow.go                          13             10             89
+./cmd/tinklet.go                                10             10             62
+./pkg/container/container.go                     7              6             62
+./main.go                                        7              0             34
+./pkg/tink/hardware.go                           7              6             30
+./app/errors.go                                  5              2             20
+./cmd/config.go                                  1              1             12
+--------------------------------------------------------------------------------
+TOTAL                             8             59             63            456
+--------------------------------------------------------------------------------
 ```
 
 </details>
