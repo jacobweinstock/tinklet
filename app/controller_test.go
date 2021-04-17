@@ -298,8 +298,6 @@ func TestReconciler(t *testing.T) {
 	expectedOutput := []actionOutput{
 		{
 			Level:    "info",
-			Ts:       0,
-			Caller:   "app/controller.go:105",
 			Msg:      "executing action",
 			Service:  "not/set",
 			WorkerID: "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a94",
@@ -318,8 +316,6 @@ func TestReconciler(t *testing.T) {
 		},
 		{
 			Level:    "info",
-			Ts:       0,
-			Caller:   "app/controller.go:141",
 			Msg:      "action complete",
 			Service:  "not/set",
 			WorkerID: "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a94",
@@ -399,7 +395,7 @@ func TestReconciler(t *testing.T) {
 	}
 
 	for index, elem := range capturedOutputs {
-		if diff := cmp.Diff(elem, expectedOutput[index], cmpopts.IgnoreFields(actionOutput{}, "Ts")); diff != "" {
+		if diff := cmp.Diff(elem, expectedOutput[index], cmpopts.IgnoreFields(actionOutput{}, "Ts", "Caller")); diff != "" {
 			t.Fatal(diff)
 		}
 	}
