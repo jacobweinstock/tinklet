@@ -25,8 +25,7 @@ func Execute(ctx context.Context) error {
 		goconfig.WithPrefix("TINKLET"),
 		goconfig.WithFile("tinklet.yaml"),
 	)
-	err := cfgParser.Parse(&config)
-	if err != nil {
+	if err := cfgParser.Parse(&config); err != nil {
 		return err
 	}
 
@@ -38,6 +37,7 @@ func Execute(ctx context.Context) error {
 
 	var dockerClient *client.Client
 	var conn *grpc.ClientConn
+	var err error
 	// small control loop to create docker client and connect to tink server
 	// keep trying so that if the problem is temporary or can be resolved the
 	// tinklet doesn't stop and need to be restarted by an outside process or person.
@@ -61,7 +61,6 @@ func Execute(ctx context.Context) error {
 				continue
 			}
 		}
-
 		break
 	}
 
@@ -73,13 +72,13 @@ func Execute(ctx context.Context) error {
 	var actionExecutionWg sync.WaitGroup
 	var controllerWg sync.WaitGroup
 	reportActionStatusChan := make(chan func() error)
-	log.V(0).Info("report action status controller started")
 	controllerWg.Add(1)
 	go app.ReportActionStatusController(ctx, log, &actionExecutionWg, reportActionStatusChan, &controllerWg)
-	log.V(0).Info("workflow action controller started")
+	log.V(0).Info("report action status controller started")
 	controllerWg.Add(1)
 	//go controller.WorkflowActionController(ctx, log, config.Identifier, dockerClient, workflowClient, hardwareClient, &actionExecutionWg, reportActionStatusChan, &controllerWg)
 	go app.Reconciler(ctx, log, config.Identifier, dockerClient, workflowClient, hardwareClient, &controllerWg)
+	log.V(0).Info("workflow action controller started")
 
 	// graceful shutdown when a signal is caught
 	<-ctx.Done()

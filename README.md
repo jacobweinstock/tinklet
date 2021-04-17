@@ -21,17 +21,16 @@ Run the help command to see the cli options `tinklet -h`
 -------------------------------------------------------------------------------------
 File                               files          blank        comment           code
 -------------------------------------------------------------------------------------
-./app/controller.go                                  24            176            169
-./platform/tink/workflow.go                          15             14            122
-./cmd/tinklet.go                                     11             11             67
+./app/controller.go                                  10             31            167
+./platform/tink/workflow.go                          13             10             89
+./cmd/tinklet.go                                     10             11             67
 ./platform/container/container.go                     7              6             62
 ./main.go                                             7              0             34
-./platform/tink/hardware.go                           7              6             33
+./platform/tink/hardware.go                           7              6             30
 ./platform/errors.go                                  5              2             20
 ./cmd/config.go                                       1              1             12
-./platform/interfaces.go                              5             25              1
 -------------------------------------------------------------------------------------
-TOTAL                                  9             82            241            520
+TOTAL                                  8             60             67            481
 -------------------------------------------------------------------------------------
 ```
 

@@ -11,7 +11,7 @@ import (
 	"github.com/tinkerbell/tink/protos/workflow"
 )
 
-type workflowsFilterByFunc = func(workflow.WorkflowServiceClient, []*workflow.Workflow) []*workflow.Workflow
+//type workflowsFilterByFunc = func(workflow.WorkflowServiceClient, []*workflow.Workflow) []*workflow.Workflow
 type actionsFilterByFunc = func([]*workflow.WorkflowAction) []*workflow.WorkflowAction
 
 // containerConfigOption allows modifying the container config defaults
@@ -54,9 +54,7 @@ func ActionToDockerHostConfig(ctx context.Context, workflowAction *workflow.Work
 func GetWorkflowContexts(ctx context.Context, workerID string, client workflow.WorkflowServiceClient) ([]*workflow.WorkflowContext, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*60)
 	defer cancel()
-	contexts, err := client.GetWorkflowContexts(ctx, &workflow.WorkflowContextRequest{
-		WorkerId: workerID,
-	})
+	contexts, err := client.GetWorkflowContexts(ctx, &workflow.WorkflowContextRequest{WorkerId: workerID})
 	if err != nil {
 		return nil, errors.WithMessage(err, "error getting workflow contexts")
 	}
@@ -77,43 +75,6 @@ func GetWorkflowContexts(ctx context.Context, workerID string, client workflow.W
 		return nil, err
 	}
 
-	return wks, nil
-}
-
-// GetAllWorkflows job is to talk with tink server and retrieve all workflows.
-// Optionally, if one or more filterByFunc is passed in,
-// these filterByFunc will be used to filter all the workflows that were retrieved.
-func GetAllWorkflows(ctx context.Context, client workflow.WorkflowServiceClient, filterByFunc ...workflowsFilterByFunc) ([]*workflow.Workflow, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*60)
-	defer cancel()
-	allWorkflows, err := client.ListWorkflows(ctx, &workflow.Empty{})
-	if err != nil {
-		return nil, errors.WithMessage(err, "error getting workflows")
-	}
-	// for loop; in order to get all the workflows because the server streams responses one by one.
-	var wks []*workflow.Workflow
-	for {
-		aWorkflow, recvErr := allWorkflows.Recv()
-		if recvErr == io.EOF {
-			break
-		}
-		if recvErr != nil {
-			err = multierror.Append(err, recvErr)
-			continue
-		}
-		wks = append(wks, aWorkflow)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	// run caller defined filtering
-	for index := range filterByFunc {
-		if filterByFunc[index] != nil {
-			wksFiltered := filterByFunc[index](client, wks)
-			wks = wksFiltered
-		}
-	}
 	return wks, nil
 }
 

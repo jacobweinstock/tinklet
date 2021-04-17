@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 	"testing"
 	"time"
 
@@ -18,64 +17,14 @@ import (
 )
 
 type mocker struct {
-	failListWorkflows         bool
-	failListWorkflowsRecvFunc bool
-	failGetWorkflowActions    bool
-	failGetWorkflowContexts   bool
-	numWorkflowsToMock        int
-	numContextsToMock         int
-	start                     int
-}
-
-func TestGetWorkflowsOfficial(t *testing.T) {
-	testCases := map[string]struct {
-		expectedWorkflows []*workflow.Workflow
-		err               error
-		ctxTimeout        time.Duration
-		mock              *mocker
-		filterByFunc      func(workflow.WorkflowServiceClient, []*workflow.Workflow) []*workflow.Workflow
-	}{
-		"success":            {expectedWorkflows: []*workflow.Workflow{{Id: "1"}, {Id: "2"}, {Id: "3"}}, mock: &mocker{numWorkflowsToMock: 3}},
-		"fail ListWorkflows": {err: errors.New("error getting workflows: failed"), mock: &mocker{failListWorkflows: true}},
-		"fail recv":          {err: &multierror.Error{Errors: []error{errors.New("failed")}}, mock: &mocker{failListWorkflowsRecvFunc: true, numWorkflowsToMock: 1}},
-		"success with filter": {expectedWorkflows: []*workflow.Workflow{{Id: "1"}, {Id: "2"}}, mock: &mocker{numWorkflowsToMock: 3}, filterByFunc: func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
-			var filteredWorkflows []*workflow.Workflow
-			for _, elem := range workflows {
-				if elem.Id != "3" {
-					filteredWorkflows = append(filteredWorkflows, elem)
-				}
-			}
-			return filteredWorkflows
-		}},
-	}
-
-	for name, tc := range testCases {
-		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-			defer cancel()
-
-			var workflows []*workflow.Workflow
-			var err error
-			if tc.filterByFunc != nil {
-				workflows, err = GetAllWorkflows(ctx, tc.mock.getMockedWorkflowServiceClient(), tc.filterByFunc)
-			} else {
-				workflows, err = GetAllWorkflows(ctx, tc.mock.getMockedWorkflowServiceClient())
-			}
-			if err != nil {
-				if tc.err != nil {
-					if diff := cmp.Diff(err.Error(), tc.err.Error()); diff != "" {
-						t.Fatal(diff)
-					}
-				} else {
-					t.Fatal(err)
-				}
-			} else {
-				if diff := cmp.Diff(workflows, tc.expectedWorkflows, cmpopts.IgnoreUnexported(workflow.Workflow{})); diff != "" {
-					t.Fatal(diff)
-				}
-			}
-		})
-	}
+	failListWorkflows           bool
+	failListWorkflowsRecvFunc   bool
+	failGetWorkflowActions      bool
+	failGetWorkflowContexts     bool
+	failGetWorkflowContextsRecv error
+	numWorkflowsToMock          int
+	numContextsToMock           int
+	start                       int
 }
 
 func TestGetActionsList(t *testing.T) {
@@ -127,8 +76,9 @@ func TestGetWorkflowContexts(t *testing.T) {
 		ctxTimeout        time.Duration
 		mock              *mocker
 	}{
-		"success":              {expectedWorkflows: []*workflow.WorkflowContext{{WorkflowId: "12345"}}, mock: &mocker{numContextsToMock: 1}},
-		"fail to get contexts": {err: errors.Wrap(errors.New("failed"), "error getting workflow contexts"), mock: &mocker{failGetWorkflowContexts: true}},
+		"success":                     {expectedWorkflows: []*workflow.WorkflowContext{{WorkflowId: "12345"}}, mock: &mocker{numContextsToMock: 1}},
+		"fail to get contexts":        {err: errors.Wrap(errors.New("failed"), "error getting workflow contexts"), mock: &mocker{failGetWorkflowContexts: true}},
+		"fail to stream any contexts": {err: &multierror.Error{Errors: []error{errors.New("lkdfj")}}, mock: &mocker{numContextsToMock: 1, failGetWorkflowContextsRecv: errors.New("lkdfj")}},
 	}
 
 	for name, tc := range testCases {
@@ -152,47 +102,6 @@ func TestGetWorkflowContexts(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestGetWorkflows(t *testing.T) {
-	t.Skip()
-	conn, err := grpc.Dial("192.168.1.214:42113", grpc.WithInsecure())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var filterByMac workflowsFilterByFunc = func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
-		var filteredWorkflows []*workflow.Workflow
-		for _, elem := range workflows {
-			if strings.Contains(elem.Hardware, "00:50:56:25:11:0e") {
-				filteredWorkflows = append(filteredWorkflows, elem)
-			}
-		}
-		return filteredWorkflows
-	}
-
-	var filterByState workflowsFilterByFunc = func(workflowClient workflow.WorkflowServiceClient, workflows []*workflow.Workflow) []*workflow.Workflow {
-		var filteredWorkflows []*workflow.Workflow
-		for _, elem := range workflows {
-			if elem.State != workflow.State_STATE_SUCCESS && elem.State != workflow.State_STATE_TIMEOUT {
-				filteredWorkflows = append(filteredWorkflows, elem)
-			}
-		}
-		return filteredWorkflows
-	}
-
-	client := workflow.NewWorkflowServiceClient(conn)
-	workflows, err := GetAllWorkflows(context.Background(), client, filterByMac, filterByState)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(workflows) > 0 {
-		t.Log(workflows[0])
-	}
-
-	t.Log(len(workflows))
-
-	t.Fatal()
 }
 
 func (m *mocker) getMockedWorkflowServiceClient() *workflow.WorkflowServiceClientMock {
@@ -265,7 +174,7 @@ func (m *mocker) getMockedWorkflowServiceClient() *workflow.WorkflowServiceClien
 				CurrentActionIndex:   0,
 				CurrentActionState:   0,
 				TotalNumberOfActions: 0,
-			}, nil
+			}, m.failGetWorkflowContextsRecv
 		}
 		return &recvFuncContexts, nil
 	}
