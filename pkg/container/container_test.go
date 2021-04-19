@@ -2,6 +2,8 @@ package container
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"io"
 	"strings"
 	"testing"
@@ -65,13 +67,23 @@ func (t *mockClient) ContainerLogs(ctx context.Context, container string, option
 
 func TestActualPull(t *testing.T) {
 	t.Skip()
+
 	cl, err := client.NewClientWithOpts()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	imageName := "alpine:latest"
-	var pullOpts types.ImagePullOptions
+	authConfig := types.AuthConfig{
+		Username: "admin",
+		Password: "password",
+	}
+	encodedJSON, err := json.Marshal(authConfig)
+	if err != nil {
+		t.Fatal(errors.Wrap(err, "DOCKER AUTH"))
+	}
+	authStr := base64.URLEncoding.EncodeToString(encodedJSON)
+	pullOpts := types.ImagePullOptions{RegistryAuth: authStr}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()

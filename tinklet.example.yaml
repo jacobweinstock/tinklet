@@ -1,7 +1,10 @@
 ---
 identifier: "00:00:00:00:00:00"
-tinkServer: "192.168.1.214:42113"
+tink: "192.168.1.130:42113"
 registry:
-  name: "192.168.1.214"
+- name: "192.168.1.130"
   user: "admin"
-  pass: "17d928bd9322c18cace86aee8d6cb62414baef9e4eaac997b6ffdf6a42bacafe"
+  pass: "b3c436f9c2a30c8e574522c00c70a42ff3ad7a2df229995a054f8aea2c4ec3c5"
+- name: "quay.io"
+  user: "admin"
+  pass: "pass"

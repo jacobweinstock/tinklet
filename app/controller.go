@@ -25,7 +25,7 @@ import (
 // 1b. if no - ask again later
 // TODO: assume action executions are idempotent, meaning keep trying them until they they succeed
 // TODO; make action executions declarative, meaning we can determine current status and desired state. allows retrying executions
-func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerClient dClient, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, stopControllerWg *sync.WaitGroup) {
+func Reconciler(ctx context.Context, log logr.Logger, identifier string, registryAuth map[string]string, dockerClient dClient, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, stopControllerWg *sync.WaitGroup) {
 	initialLog := log
 	for {
 		log = initialLog
@@ -81,7 +81,7 @@ func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerC
 				actionLog.V(0).Info("executing action")
 				start := time.Now()
 				err = ActionExecutionFlow(ctx, log, dockerClient, elem.Image,
-					types.ImagePullOptions{},
+					types.ImagePullOptions{RegistryAuth: getRegistryAuth(registryAuth, elem.Image)},
 					tink.ActionToDockerContainerConfig(ctx, elem), // nolint
 					tink.ActionToDockerHostConfig(ctx, elem),      // nolint
 					// spaces in a container name are not valid, add a timestamp so the container name is always unique.
@@ -121,6 +121,15 @@ func Reconciler(ctx context.Context, log logr.Logger, identifier string, dockerC
 			}
 		}
 	}
+}
+
+func getRegistryAuth(regAuth map[string]string, imageName string) string {
+	for reg, auth := range regAuth {
+		if strings.HasPrefix(imageName, reg) {
+			return auth
+		}
+	}
+	return ""
 }
 
 type dClient interface {

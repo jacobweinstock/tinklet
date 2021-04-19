@@ -376,7 +376,7 @@ func TestReconciler(t *testing.T) {
 		workflowClient := mockr.getMockedWorkflowServiceClient()
 
 		controllerWg.Add(1)
-		go Reconciler(ctx, log, identifier, &dockerClient, workflowClient, hardwareClient, &controllerWg)
+		go Reconciler(ctx, log, identifier, map[string]string{"": ""}, &dockerClient, workflowClient, hardwareClient, &controllerWg)
 		time.Sleep(5 * time.Second)
 		cancel()
 		<-ctx.Done()
