@@ -18,25 +18,28 @@ tinklet is an implementation of the [tinkerbell worker](https://docs.tinkerbell.
 ```bash
 Usage of tinklet:
   -config string
-        config file (optional)
+        config file (optional) (default "tinklet.yaml")
   -identifier string
-        worker id
+        worker id (required)
   -loglevel string
-        log level (default "info")
+        log level (optional) (default "info")
   -registry value
-        container image registry:
-        '{"name":"localhost:5000","user":"admin","password":"password123"}'
+        container image registry (optional)
+        {"name":"localhost:5000","user":"admin","password":"password123"}
   -tink string
-        tink server url (192.168.1.214:42114)
+        tink server url (required)
+        192.168.1.214:42113
   -tls string
-        tink server TLS options:
-        file:// or http:// or boolean (false - no TLS, true - tink has a cert from known CA)
+        tink server TLS (optional) (default "false")
+        - file:///path/to/cert/tink.cert
+        - http://tink-server:42114/cert
+        - boolean (false - no TLS, true - tink has a cert from known CA)
 ```
 
 ## Design Philosophies
 
 1. simple
-2. prefer easy to understandable over easy to do
+2. prefer easy to understand over easy to do
 3. `pkg` packages do not log
 4. `pkg` is generic, reuseable code
 5. functions/methods are as test-able as possible

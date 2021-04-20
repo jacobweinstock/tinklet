@@ -46,13 +46,13 @@ type registries []Registry
 
 func initFlagSetToConfig(appName string, config *configuration) *flag.FlagSet {
 	fs := flag.NewFlagSet(appName, flag.ExitOnError)
-	fs.StringVar(&config.LogLevel, "loglevel", "info", "log level")
-	fs.StringVar(&config.Config, "config", "", "config file (optional)")
-	fs.StringVar(&config.Identifier, "identifier", "", "worker id")
-	fs.StringVar(&config.Tink, "tink", "", "tink server url (192.168.1.214:42114)")
-	fs.StringVar(&config.TLS, "tls", "", "tink server TLS options:\nfile:// or http:// or boolean (false - no TLS, true - tink has a cert from known CA)")
-	registryExample := `'{"name":"localhost:5000","user":"admin","password":"password123"}'`
-	fs.Var(&config.Registry, "registry", fmt.Sprintf("container image registry:\n%v", registryExample))
+	fs.StringVar(&config.LogLevel, "loglevel", "info", "log level (optional)")
+	fs.StringVar(&config.Config, "config", "tinklet.yaml", "config file (optional)")
+	fs.StringVar(&config.Identifier, "identifier", "", "worker id (required)")
+	fs.StringVar(&config.Tink, "tink", "", "tink server url (required)\n192.168.1.214:42113")
+	fs.StringVar(&config.TLS, "tls", "", "tink server TLS (optional) (default \"false\")\n- file:///path/to/cert/tink.cert\n- http://tink-server:42114/cert\n- boolean (false - no TLS, true - tink has a cert from known CA)")
+	registryExample := `{"name":"localhost:5000","user":"admin","password":"password123"}`
+	fs.Var(&config.Registry, "registry", fmt.Sprintf("container image registry (optional)\n%v", registryExample))
 	return fs
 }
 
