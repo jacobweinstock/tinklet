@@ -6,11 +6,42 @@
 
 >:warning: This is a WIP as it is not a drop in replacement for [tink-worker](https://docs.tinkerbell.org/services/tink-worker/) yet :warning:
 
-tinklet is over 40% smaller and a fully tested implementation of the [tinkerbell worker](https://docs.tinkerbell.org/services/tink-worker/)
+tinklet is an implementation of the [tinkerbell worker](https://docs.tinkerbell.org/services/tink-worker/).
+
+## Notable Features
+
+- auth for multiple container registries
+- multiple client-side TLS options for communicating with Tink server (from file, from URL, off)
 
 ## Usage
 
-Run the help command to see the cli options `tinklet -h`
+```bash
+Usage of tinklet:
+  -config string
+        config file (optional)
+  -identifier string
+        worker id
+  -loglevel string
+        log level (default "info")
+  -registry value
+        container image registry:
+        '{"name":"localhost:5000","user":"admin","password":"password123"}'
+  -tink string
+        tink server url (192.168.1.214:42114)
+  -tls string
+        tink server TLS options:
+        file:// or http:// or boolean (false - no TLS, true - tink has a cert from known CA)
+```
+
+## Design Philosophies
+
+1. simple
+2. prefer easy to understandable over easy to do
+3. `pkg` packages do not log
+4. `pkg` is generic, reuseable code
+5. functions/methods are as test-able as possible
+6. less code, less bugs
+7. prefer explicit over implicit
 
 ## Lines of code
 
@@ -21,16 +52,18 @@ Run the help command to see the cli options `tinklet -h`
 --------------------------------------------------------------------------------
 File                          files          blank        comment           code
 --------------------------------------------------------------------------------
-./app/controller.go                              9             28            147
+./app/controller.go                             10             28            155
+./cmd/tinklet.go                                14             11             95
 ./pkg/tink/workflow.go                          13             10             89
-./cmd/tinklet.go                                10             10             62
+./cmd/grpc_tls.go                                8             12             82
 ./pkg/container/container.go                     7              6             62
+./cmd/config.go                                  7             21             45
 ./main.go                                        7              0             34
 ./pkg/tink/hardware.go                           7              6             30
+./cmd/logger.go                                  4              1             23
 ./app/errors.go                                  5              2             20
-./cmd/config.go                                  1              1             12
 --------------------------------------------------------------------------------
-TOTAL                             8             59             63            456
+TOTAL                            10             82             97            635
 --------------------------------------------------------------------------------
 ```
 
@@ -63,3 +96,4 @@ docker run --rm -v "${PWD}":/workdir hhatto/gocloc --exclude-ext=yaml,bash,md,Ma
 ```
 
 </details>
+

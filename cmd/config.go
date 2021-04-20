@@ -4,20 +4,29 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"os"
-	"strings"
-
-	"github.com/peterbourgon/ff"
-	"github.com/pkg/errors"
 )
 
 // configuration for Tinklet, values are normally set from flags, env, and file
 type configuration struct {
-	LogLevel   string
-	Config     string
-	Identifier string
-	Tink       string
-	Registry   registries
+	LogLevel string
+	// Config is the location to a config file
+	Config string
+	// Identifier is the worker ID used to get workflow tasks to run
+	Identifier string `validate:"required"`
+	// Tink is the URL:Port for the tink server
+	Tink string `validate:"required"`
+	// TLS can be one of the following
+	// 1. location on disk of a cert
+	// example: /location/on/disk/of/cert
+	// 2. URL from which to GET a cert
+	// example: http://weburl:8080/cert
+	// 3. boolean; true if the tink server (specified by the Tink key/value) has a cert from a known CA
+	// false if the tink server does not have TLS enabled
+	// example: true
+	TLS string
+	// Registry is a slice of container registries with credentials to use
+	// during workflow task action execution
+	Registry registries `yaml:"registries"`
 }
 
 // Registry details for a container registry
@@ -32,35 +41,27 @@ type Registry struct {
 	//Secure bool
 }
 
+// needed for (*flag.FlagSet).Var
 type registries []Registry
 
-func initConfig(config *configuration) error {
-	fs := flag.NewFlagSet("tinklet", flag.ExitOnError)
+func initFlagSetToConfig(appName string, config *configuration) *flag.FlagSet {
+	fs := flag.NewFlagSet(appName, flag.ExitOnError)
 	fs.StringVar(&config.LogLevel, "loglevel", "info", "log level")
 	fs.StringVar(&config.Config, "config", "", "config file (optional)")
 	fs.StringVar(&config.Identifier, "identifier", "", "worker id")
 	fs.StringVar(&config.Tink, "tink", "", "tink server url (192.168.1.214:42114)")
-	fs.Var(&config.Registry, "registry", "container image registries")
-
-	if err := ff.Parse(fs, os.Args[1:],
-		ff.WithEnvVarPrefix("TINKLET"),
-		ff.WithConfigFileFlag("config"),
-		ff.WithConfigFileParser(Parser),
-		ff.WithAllowMissingConfigFile(true),
-		ff.WithIgnoreUndefined(true),
-	); err != nil {
-		return errors.Wrap(err, "error parsing config")
-	}
-	return nil
+	fs.StringVar(&config.TLS, "tls", "", "tink server TLS options:\nfile:// or http:// or boolean (false - no TLS, true - tink has a cert from known CA)")
+	registryExample := `'{"name":"localhost:5000","user":"admin","password":"password123"}'`
+	fs.Var(&config.Registry, "registry", fmt.Sprintf("container image registry:\n%v", registryExample))
+	return fs
 }
 
 func (i *registries) String() string {
-	var re []string
-	v := `{"name":"%v","user":"%v","pass":"%v"}`
-	for _, elem := range *i {
-		re = append(re, fmt.Sprintf(v, elem.Name, elem.User, elem.Pass))
+	out, err := json.Marshal(*i)
+	if err != nil {
+		return ""
 	}
-	return fmt.Sprintf("[%v]", strings.Join(re, ","))
+	return string(out)
 }
 
 func (i *registries) Set(value string) error {
