@@ -2,9 +2,6 @@ package kube
 
 import (
 	"context"
-	"log"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -13,10 +10,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 func TestCreateJob(t *testing.T) {
@@ -78,6 +73,7 @@ func TestCreateJob(t *testing.T) {
 	}
 }
 
+/*
 func connectToK8s() kubernetes.Interface {
 	home, exists := os.LookupEnv("HOME")
 	if !exists {
@@ -100,7 +96,7 @@ func connectToK8s() kubernetes.Interface {
 }
 
 func TestLive(t *testing.T) {
-	//t.Skip()
+	t.Skip()
 	client := Client{Conn: connectToK8s()}
 	job, err := client.CreateJob(context.Background(), "default", "testing", "alpine", []string{"/bin/sleep", "5"}, "")
 	if err != nil {
@@ -109,7 +105,9 @@ func TestLive(t *testing.T) {
 	t.Fatal(job)
 }
 
+
 func TestJobExecComplete(t *testing.T) {
+	t.Skip()
 	client := Client{Conn: connectToK8s()}
 	complete, state, err := client.JobExecComplete(context.Background(), "default", "testing")
 	if err != nil {
@@ -118,3 +116,4 @@ func TestJobExecComplete(t *testing.T) {
 	t.Log(complete)
 	t.Fatalf("%+v", state)
 }
+*/

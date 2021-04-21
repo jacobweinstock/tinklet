@@ -81,12 +81,14 @@ func (c *Client) JobExecComplete(ctx context.Context, namespace string, jobName 
 	if len(pod.Items) == 0 {
 		return false, v1.ContainerState{}, errors.New("job not found")
 	}
+	var st v1.ContainerState
 	for _, elem := range pod.Items {
-		st := elem.Status.ContainerStatuses[0].State
+		st = elem.Status.ContainerStatuses[0].State
 		if st.Terminated == nil {
 			return false, v1.ContainerState{}, nil
+		} else {
+			break
 		}
-		return true, st, nil
 	}
-	return false, v1.ContainerState{}, nil
+	return true, st, nil
 }
