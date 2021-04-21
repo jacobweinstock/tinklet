@@ -20,4 +20,7 @@ require (
 	google.golang.org/grpc v1.36.1
 	google.golang.org/protobuf v1.26.0
 	gotest.tools/v3 v3.0.3 // indirect
+	k8s.io/api v0.21.0
+	k8s.io/apimachinery v0.21.0
+	k8s.io/client-go v0.21.0
 )

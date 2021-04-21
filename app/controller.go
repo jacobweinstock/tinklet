@@ -191,3 +191,87 @@ LOOP:
 	logs, _ := container.ContainerGetLogs(ctx, dockerClient, containerID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
 	return fmt.Errorf("msg: container execution was unsuccessful; logs: %v;  exitCode: %v; details: %v", logs, detail.State.ExitCode, detail.State.Error)
 }
+
+type Executioner interface {
+	ImagePreparer
+	ContainerCreater
+	ContainerStarter
+	ContainerRemover
+	ContainerExecStateGetter
+}
+
+type ImagePreparer interface {
+	PrepareImage(ctx context.Context, imageName string) error
+}
+
+type ContainerCreater interface {
+	CreateContainer(ctx context.Context, containerName string) (containerID string, err error)
+}
+
+type ContainerStarter interface {
+	StartContainer(ctx context.Context, containerID string) error
+}
+
+type ContainerRemover interface {
+	RemoveContainer(ctx context.Context, containerID string) error
+}
+
+type ContainerState struct {
+	ExitCode int
+	Message  string
+}
+type ContainerExecStateGetter interface {
+	GetContainerExecState(ctx context.Context, containerID string) (complete bool, state ContainerState, err error)
+}
+
+// ActionExecutionFlow is the lifecyle of a container execution
+// business/domain logic for executing an action
+// =============================================
+// 1. Pull the image
+// 2. Create the container
+// 3. Start the container
+// 4. Removal of container is go "deferred"
+// 5. Wait and watch for container exit status or timeout
+func ActionExecutionFlowWithInterfaces(ctx context.Context, log logr.Logger, client Executioner, imageName string, containerName string, timeout time.Duration) error {
+	// 1. Pull the image
+	if err := client.PrepareImage(ctx, imageName); err != nil {
+		return errors.Wrap(&ExecutionError{Msg: "image prep failed"}, err.Error())
+	}
+	// 2. create container
+	containerID, err := client.CreateContainer(ctx, containerName)
+	if err != nil {
+		return errors.Wrap(&ExecutionError{Msg: "creating container failed"}, err.Error())
+	}
+	// 3. Removal of container is go "deferred"
+	defer client.RemoveContainer(ctx, containerID) // nolint
+	// 4. Start container
+	if err = client.StartContainer(ctx, containerID); err != nil {
+		return errors.Wrap(&ExecutionError{Msg: "starting container failed"}, err.Error())
+	}
+	// 5. Wait and watch for container exit status or timeout
+	timer := time.NewTimer(timeout)
+	var detail ContainerState
+LOOP:
+	for {
+		select {
+		case r := <-timer.C:
+			return &TimeoutError{TimeoutValue: time.Duration(r.Unix())}
+		default:
+			var complete bool
+			complete, detail, err = client.GetContainerExecState(ctx, containerID)
+			if err != nil {
+				return errors.Wrap(&ExecutionError{Msg: "waiting for container failed"}, err.Error())
+			}
+			if complete {
+				break LOOP
+			}
+		}
+	}
+
+	// container execution completed successfully
+	if detail.ExitCode == 0 {
+		return nil
+	}
+	//logs, _ := container.ContainerGetLogs(ctx, dockerClient, containerID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
+	return fmt.Errorf("msg: container execution was unsuccessful;  exitCode: %v; details: %v", detail.ExitCode, detail.Message)
+}
