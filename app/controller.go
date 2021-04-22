@@ -14,7 +14,7 @@ import (
 )
 
 type Runner interface {
-	PrepareEnv(ctx context.Context, taskName string, workerID string) error
+	PrepareEnv(ctx context.Context, id string) error
 	CleanEnv(ctx context.Context) error
 	// Prepare should create (not run) any containers/pods, setup the environment, mounts, etc
 	Prepare(ctx context.Context, imageName string) (id string, err error)
@@ -70,7 +70,7 @@ func Controller(ctx context.Context, log logr.Logger, identifier string, runner 
 				break
 			}
 			// prepare environment for the workflow task
-			if err := runner.PrepareEnv(ctx, id.GetWorkflowId(), workerID); err != nil {
+			if err := runner.PrepareEnv(ctx, id.GetWorkflowId()); err != nil {
 				log.V(0).Error(err, "unable to prepare environment")
 				break
 			}

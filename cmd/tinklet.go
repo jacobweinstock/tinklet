@@ -65,7 +65,7 @@ func Execute(ctx context.Context) error {
 		}
 		// setup local container runtime client
 		if config.Kube {
-			kubeClient, err = connectToK8s()
+			kubeClient, err = k8sLoadConfig()
 			if err != nil {
 				log.V(0).Error(err, "error creating kubernetes client")
 				time.Sleep(time.Second * 3)
@@ -139,18 +139,13 @@ func encodeRegistryAuth(v types.AuthConfig) string {
 	return base64.URLEncoding.EncodeToString(encodedAuth)
 }
 
-func connectToK8s() (kubernetes.Interface, error) {
-	home, exists := os.LookupEnv("HOME")
-	if !exists {
-		home = "/root"
-	}
-
-	configPath := filepath.Join(home, ".kube", "config")
+func k8sLoadConfig() (kubernetes.Interface, error) {
 	var config *rest.Config
-	config, err := clientcmd.BuildConfigFromFlags("", configPath)
+	// creates the in-cluster config
+	config, err := rest.InClusterConfig()
 	if err != nil {
-		// creates the in-cluster config
-		config, err = rest.InClusterConfig()
+		// try a local config
+		config, err = k8sConfigFromFile()
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create K8s config")
 		}
@@ -160,6 +155,19 @@ func connectToK8s() (kubernetes.Interface, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create K8s clientset")
 	}
-
 	return clientset, nil
+}
+
+func k8sConfigFromFile() (*rest.Config, error) {
+	home, exists := os.LookupEnv("HOME")
+	if !exists {
+		home = "/root"
+	}
+
+	configPath := filepath.Join(home, ".kube", "config")
+	config, err := clientcmd.BuildConfigFromFlags("", configPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create K8s config")
+	}
+	return config, nil
 }

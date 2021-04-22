@@ -39,7 +39,7 @@ func getRegistryAuth(regAuth map[string]string, imageName string) string {
 	return ""
 }
 
-func (c *Client) PrepareEnv(ctx context.Context, taskName string, workerID string) error {
+func (c *Client) PrepareEnv(ctx context.Context, id string) error {
 	return nil
 }
 

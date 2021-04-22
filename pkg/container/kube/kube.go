@@ -21,13 +21,14 @@ import (
 
 // Client for communicating with kubernetes
 type Client struct {
-	Conn           kubernetes.Interface
-	RegistryAuth   map[string]string
-	action         *workflow.WorkflowAction
-	taskNamespace  string
-	taskPullSecret string
-	jobSpec        *batchv1.Job
-	workflowID     string
+	Conn                     kubernetes.Interface
+	RegistryAuth             map[string]string
+	action                   *workflow.WorkflowAction
+	taskNamespace            string
+	taskNamespaceIsEphemeral bool
+	taskPullSecret           string
+	jobSpec                  *batchv1.Job
+	workflowID               string
 }
 
 func (c *Client) SetActionData(ctx context.Context, workflowID string, action *workflow.WorkflowAction) {
@@ -44,37 +45,70 @@ func getRegistryAuth(regAuth map[string]string, imageName string) string {
 	return ""
 }
 
-func (c *Client) PrepareEnv(ctx context.Context, taskName string, workerID string) error {
+type constrainedString string
+
+func (a constrainedString) maxChars(max int) string {
+	if len(a) > max {
+		v := a[:max]
+		return string(v)
+	}
+	return string(a)
+}
+
+func (c *Client) PrepareEnv(ctx context.Context, id string) error {
+	var multiErr error
 	// 1. create namespace; once per task
+	// check if we can create namespaces, if we can we run workflow tasks in ephemeral namespaces
+	// if we cant create namespaces, the tinklet namespace must exist
+	if c.taskNamespace == "" {
+		// kubernetes namespace max length is 63 characters
+		nmsp := constrainedString(fmt.Sprintf("tinklet-%v-%v", id, time.Now().UnixNano()))
+		ns := nmsp.maxChars(63)
+		// check if the namespace exists
+		_, err := c.Conn.CoreV1().Namespaces().Get(ctx, ns, metav1.GetOptions{})
+		if err == nil {
+			c.taskNamespace = ns
+			c.taskNamespaceIsEphemeral = true
+			return nil
+		} else {
+			multiErr = multierror.Append(multiErr, err)
+		}
+		_, err = c.Conn.CoreV1().Namespaces().Create(ctx, &v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ns,
+			},
+		}, metav1.CreateOptions{})
+		if err == nil {
+			c.taskNamespace = ns
+			c.taskNamespaceIsEphemeral = true
+			return nil
+		} else {
+			multiErr = multierror.Append(multiErr, err)
+		}
+	}
+
+	// check if the tinklet namespace exists
+	// TODO: if we cant create namespaces, make the namespace to use user-define-able
+	_, err := c.Conn.CoreV1().Namespaces().Get(ctx, "tinklet", metav1.GetOptions{})
+	if err != nil {
+		return errors.WithMessage(multierror.Append(multiErr, err), "tinklet namespace not found")
+	}
+
 	c.taskNamespace = "tinklet"
 	return nil
-/*
-	if c.taskNamespace == "" {
-		ns := "tinklet-workflows"
-		if _, err := c.Conn.CoreV1().Namespaces().Create(ctx, &v1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:   ns,
-				Labels: map[string]string{"worker_id": workerID, "task": taskName},
-			},
-		}, metav1.CreateOptions{}); err != nil {
-			return err
-		}
-		c.taskNamespace = ns
-	}
-	return nil
-*/
 }
 
 func (c *Client) CleanEnv(ctx context.Context) error {
 	// 3. delete namespace
-	/*
-	defer func() { c.taskNamespace = "" }()
-	// no grace period; delete now
-	var gracePeriod int64 = 0
-	// delete all descendends in the foreground
-	policy := metav1.DeletePropagationForeground
-	return c.Conn.CoreV1().Namespaces().Delete(ctx, c.taskNamespace, metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod, PropagationPolicy: &policy})
-	*/
+	if c.taskNamespaceIsEphemeral {
+		defer func() { c.taskNamespace = "" }()
+		// no grace period; delete now
+		var gracePeriod int64 = 0
+		// delete all descendends in the foreground
+		policy := metav1.DeletePropagationForeground
+		return c.Conn.CoreV1().Namespaces().Delete(ctx, c.taskNamespace, metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod, PropagationPolicy: &policy})
+	}
+
 	return nil
 }
 
