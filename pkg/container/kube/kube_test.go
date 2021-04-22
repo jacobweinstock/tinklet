@@ -15,6 +15,7 @@ import (
 )
 
 func TestCreateJob(t *testing.T) {
+	var parallelism int32 = 1
 	tests := map[string]struct {
 		clientset   *fake.Clientset
 		expectedJob *batchv1.Job
@@ -30,8 +31,10 @@ func TestCreateJob(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test_job",
 				Namespace: "test_ns",
+				Labels:    map[string]string{},
 			},
 			Spec: batchv1.JobSpec{
+				Parallelism:  &parallelism,
 				BackoffLimit: new(int32),
 				Template: v1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{},
@@ -55,7 +58,7 @@ func TestCreateJob(t *testing.T) {
 				})
 			}
 			client := Client{Conn: tc.clientset}
-			job, err := client.CreateJob(context.Background(), "test_ns", "test_job", "alpine", []string{"/bin/sh", "sleep", "2"}, "")
+			job, err := client.createJob(context.Background(), "test_ns", "test_job", "alpine", []string{"/bin/sh", "sleep", "2"}, map[string]string{}, "", true)
 			if err != nil {
 				if tc.expectedErr != nil {
 					if diff := cmp.Diff(err.Error(), tc.expectedErr.Error()); diff != "" {

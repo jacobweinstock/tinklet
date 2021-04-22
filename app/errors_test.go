@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+/*
 func TestExecutionError(t *testing.T) {
 	expected := "msg: this was a failure; exit code: 127; details: so many details; stdout: i have failed"
 	err := &ExecutionError{
@@ -19,6 +20,7 @@ func TestExecutionError(t *testing.T) {
 		t.Fatal(diff)
 	}
 }
+*/
 
 func TestTimeoutError(t *testing.T) {
 	expected := "timeout reached: 5s"

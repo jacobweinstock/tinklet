@@ -1,31 +1,6 @@
 package app
 
-import (
-	"bufio"
-	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"log"
-	"os"
-	"strings"
-	"sync"
-	"testing"
-	"time"
-
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/client"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	specs "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/packethost/pkg/log/logr"
-	"github.com/pkg/errors"
-	"github.com/tinkerbell/tink/protos/hardware"
-	"github.com/tinkerbell/tink/protos/workflow"
-	"google.golang.org/grpc"
-)
+/*
 
 type mockClient struct {
 	client.ContainerAPIClient
@@ -334,15 +309,7 @@ func TestReconciler(t *testing.T) {
 		},
 	}
 
-	/*
-		type controllerStop struct {
-			Level   string  `json:"level"`
-			Ts      float64 `json:"ts"`
-			Caller  string  `json:"caller"`
-			Msg     string  `json:"msg"`
-			Service string  `json:"service"`
-		}
-	*/
+
 
 	capturedOutput := captureOutput(func() {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -512,3 +479,4 @@ func (m *mocker) getMockedWorkflowServiceClient() *workflow.WorkflowServiceClien
 
 	return &workflowSvcClient
 }
+*/

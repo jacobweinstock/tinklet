@@ -27,6 +27,7 @@ type configuration struct {
 	// Registry is a slice of container registries with credentials to use
 	// during workflow task action execution
 	Registry registries `yaml:"registries"`
+	Kube     bool
 }
 
 // Registry details for a container registry
@@ -50,9 +51,10 @@ func initFlagSetToConfig(appName string, config *configuration) *flag.FlagSet {
 	fs.StringVar(&config.Config, "config", "tinklet.yaml", "config file (optional)")
 	fs.StringVar(&config.Identifier, "identifier", "", "worker id (required)")
 	fs.StringVar(&config.Tink, "tink", "", "tink server url (required)\n192.168.1.214:42113")
-	fs.StringVar(&config.TLS, "tls", "", "tink server TLS (optional) (default \"false\")\n- file:///path/to/cert/tink.cert\n- http://tink-server:42114/cert\n- boolean (false - no TLS, true - tink has a cert from known CA)")
+	fs.StringVar(&config.TLS, "tls", "false", "tink server TLS (optional) (default \"false\")\n- file:///path/to/cert/tink.cert\n- http://tink-server:42114/cert\n- boolean (false - no TLS, true - tink has a cert from known CA)")
 	registryExample := `{"name":"localhost:5000","user":"admin","password":"password123"}`
 	fs.Var(&config.Registry, "registry", fmt.Sprintf("container image registry (optional)\n%v", registryExample))
+	fs.BoolVar(&config.Kube, "kube", false, "use kubernetes as the backend")
 	return fs
 }
 

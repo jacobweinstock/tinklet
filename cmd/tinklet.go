@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -14,11 +16,15 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/jacobweinstock/ffyaml"
 	"github.com/jacobweinstock/tinklet/app"
+	"github.com/jacobweinstock/tinklet/pkg/container/docker"
+	"github.com/jacobweinstock/tinklet/pkg/container/kube"
 	"github.com/peterbourgon/ff"
 	"github.com/pkg/errors"
 	"github.com/tinkerbell/tink/protos/hardware"
 	"github.com/tinkerbell/tink/protos/workflow"
 	"google.golang.org/grpc"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const appName = "tinklet"
@@ -44,6 +50,7 @@ func Execute(ctx context.Context) error {
 	log.V(0).Info("tinklet started", "tink_server", config.Tink, "worker_id", config.Identifier, "config", config)
 
 	var dockerClient *client.Client
+	var kubeClient kubernetes.Interface
 	var conn *grpc.ClientConn
 	var err error
 	// small control loop to create docker client and connect to tink server
@@ -57,12 +64,16 @@ func Execute(ctx context.Context) error {
 		default:
 		}
 		// setup local container runtime client
-		if dockerClient == nil {
-			dockerClient, err = client.NewClientWithOpts()
-			if err != nil {
-				log.V(0).Error(err, "error creating docker client")
-				time.Sleep(time.Second * 3)
-				continue
+		if config.Kube {
+			kubeClient = connectToK8s()
+		} else {
+			if dockerClient == nil {
+				dockerClient, err = client.NewClientWithOpts()
+				if err != nil {
+					log.V(0).Error(err, "error creating docker client")
+					time.Sleep(time.Second * 3)
+					continue
+				}
 			}
 		}
 
@@ -100,7 +111,11 @@ func Execute(ctx context.Context) error {
 
 	var controllerWg sync.WaitGroup
 	controllerWg.Add(1)
-	go app.Reconciler(ctx, log, config.Identifier, registryAuth, dockerClient, workflowClient, hardwareClient, &controllerWg)
+	if config.Kube {
+		go app.Controller(ctx, log, config.Identifier, &kube.Client{Conn: kubeClient, RegistryAuth: registryAuth}, workflowClient, hardwareClient, &controllerWg)
+	} else {
+		go app.Controller(ctx, log, config.Identifier, &docker.Client{Conn: dockerClient, RegistryAuth: registryAuth}, workflowClient, hardwareClient, &controllerWg)
+	}
 	log.V(0).Info("workflow action controller started")
 
 	// graceful shutdown when a signal is caught
@@ -117,4 +132,25 @@ func encodeRegistryAuth(v types.AuthConfig) string {
 		return ""
 	}
 	return base64.URLEncoding.EncodeToString(encodedAuth)
+}
+
+func connectToK8s() kubernetes.Interface {
+	home, exists := os.LookupEnv("HOME")
+	if !exists {
+		home = "/root"
+	}
+
+	configPath := filepath.Join(home, ".kube", "config")
+
+	config, err := clientcmd.BuildConfigFromFlags("", configPath)
+	if err != nil {
+		log.Panicln("failed to create K8s config")
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Panicln("Failed to create K8s clientset")
+	}
+
+	return clientset
 }
