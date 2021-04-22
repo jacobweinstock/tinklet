@@ -28,6 +28,7 @@ jobs:
         CGO_ENABLED: 1
     - name: update code coverage badge
       run: make update-code-coverage-badge
+      if: ${{ github.ref == 'refs/heads/main' }}
       env:
         GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
     - name: go build
