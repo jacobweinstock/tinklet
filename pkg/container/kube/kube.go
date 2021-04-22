@@ -46,8 +46,11 @@ func getRegistryAuth(regAuth map[string]string, imageName string) string {
 
 func (c *Client) PrepareEnv(ctx context.Context, taskName string, workerID string) error {
 	// 1. create namespace; once per task
+	c.taskNamespace = "tinklet"
+	return nil
+/*
 	if c.taskNamespace == "" {
-		ns := fmt.Sprintf("%v-%v", taskName, time.Now().UnixNano())
+		ns := "tinklet-workflows"
 		if _, err := c.Conn.CoreV1().Namespaces().Create(ctx, &v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   ns,
@@ -59,16 +62,20 @@ func (c *Client) PrepareEnv(ctx context.Context, taskName string, workerID strin
 		c.taskNamespace = ns
 	}
 	return nil
+*/
 }
 
 func (c *Client) CleanEnv(ctx context.Context) error {
 	// 3. delete namespace
+	/*
 	defer func() { c.taskNamespace = "" }()
 	// no grace period; delete now
 	var gracePeriod int64 = 0
 	// delete all descendends in the foreground
 	policy := metav1.DeletePropagationForeground
 	return c.Conn.CoreV1().Namespaces().Delete(ctx, c.taskNamespace, metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod, PropagationPolicy: &policy})
+	*/
+	return nil
 }
 
 func (c *Client) Prepare(ctx context.Context, imageName string) (id string, err error) {
@@ -98,17 +105,22 @@ func (c *Client) Prepare(ctx context.Context, imageName string) (id string, err 
 }
 
 func (c *Client) Destroy(ctx context.Context) error {
+	// no grace period; delete now
+	var gracePeriod int64 = 0
+	// delete all descendends in the foreground
+	policy := metav1.DeletePropagationForeground
+	deleteOpts := metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod, PropagationPolicy: &policy}
 	var errs error
 	// 1. delete secrets
 	if c.taskPullSecret != "" {
-		if err := c.Conn.CoreV1().Secrets(c.taskNamespace).Delete(ctx, c.taskPullSecret, metav1.DeleteOptions{}); err != nil {
+		if err := c.Conn.CoreV1().Secrets(c.taskNamespace).Delete(ctx, c.taskPullSecret, deleteOpts); err != nil {
 			errs = multierror.Append(errs, err)
 		}
 	}
 	c.taskPullSecret = ""
 	// 2. delete job
 	if c.jobSpec != nil {
-		if err := c.Conn.BatchV1().Jobs(c.taskNamespace).Delete(ctx, c.jobSpec.Name, metav1.DeleteOptions{}); err != nil {
+		if err := c.Conn.BatchV1().Jobs(c.taskNamespace).Delete(ctx, c.jobSpec.Name, deleteOpts); err != nil {
 			errs = multierror.Append(errs, err)
 		}
 	}

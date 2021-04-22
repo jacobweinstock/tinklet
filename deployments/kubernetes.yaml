@@ -1,0 +1,70 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tinklet
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+ name: tinklet-sa
+ namespace: tinklet
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tinklet-deployment
+  namespace: tinklet
+  labels:
+    app: tinklet
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tinklet
+  template:
+    metadata:
+      labels:
+        app: tinklet
+    spec:
+      serviceAccountName: tinklet-sa
+      containers:
+        - name: tinklet
+          image: ghcr.io/jacobweinstock/tinklet:v0.2.0
+          env:
+          - name: TINKLET_IDENTIFIER
+            value: "00:00:00:00:00:00"
+          - name: TINKLET_KUBE
+            value: "true"
+          - name: TINKLET_TINK
+            value: "192.168.1.214:42113"
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tinklet-create-jobs
+  namespace: tinklet
+rules:
+- apiGroups: ["", "batch"]
+  resources: ["pods", "jobs", "secrets", "namespaces"]
+  verbs: ["list", "get", "create", "delete", "update", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tinklet-create-jobs
+  namespace: tinklet
+subjects:
+- kind: ServiceAccount
+  name: tinklet-sa
+  namespace: tinklet
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: tinklet-create-jobs
+  namespace: tinklet
+  apiGroup: ""

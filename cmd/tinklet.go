@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +23,7 @@ import (
 	"github.com/tinkerbell/tink/protos/workflow"
 	"google.golang.org/grpc"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -65,7 +65,12 @@ func Execute(ctx context.Context) error {
 		}
 		// setup local container runtime client
 		if config.Kube {
-			kubeClient = connectToK8s()
+			kubeClient, err = connectToK8s()
+			if err != nil {
+				log.V(0).Error(err, "error creating kubernetes client")
+				time.Sleep(time.Second * 3)
+				continue
+			}
 		} else {
 			if dockerClient == nil {
 				dockerClient, err = client.NewClientWithOpts()
@@ -134,23 +139,27 @@ func encodeRegistryAuth(v types.AuthConfig) string {
 	return base64.URLEncoding.EncodeToString(encodedAuth)
 }
 
-func connectToK8s() kubernetes.Interface {
+func connectToK8s() (kubernetes.Interface, error) {
 	home, exists := os.LookupEnv("HOME")
 	if !exists {
 		home = "/root"
 	}
 
 	configPath := filepath.Join(home, ".kube", "config")
-
+	var config *rest.Config
 	config, err := clientcmd.BuildConfigFromFlags("", configPath)
 	if err != nil {
-		log.Panicln("failed to create K8s config")
+		// creates the in-cluster config
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create K8s config")
+		}
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		log.Panicln("Failed to create K8s clientset")
+		return nil, errors.Wrap(err, "Failed to create K8s clientset")
 	}
 
-	return clientset
+	return clientset, nil
 }
