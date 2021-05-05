@@ -19,7 +19,9 @@ type Runner interface {
 }
 
 type EnvironmentRunner interface {
+	// PrepareEnv should do things like create namespaces, configs, secrets, etc
 	PrepareEnv(ctx context.Context, id string) error
+	// CleanEnv should remove anything that was created when PrepareEnv was called
 	CleanEnv(ctx context.Context) error
 }
 
@@ -156,7 +158,7 @@ func controller(ctx context.Context, log logr.Logger, identifier string, runner 
 	}
 }
 
-// actionFlow is the lifecyle of an action execution
+// actionFlow is the lifecycle of an action
 // business/domain logic for executing an action
 func actionFlow(ctx context.Context, client ContainerRunner, action *workflow.WorkflowAction, imageName string, workflowID string) error {
 	// 1. Set the action data

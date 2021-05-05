@@ -50,9 +50,9 @@ func TestRunController(t *testing.T) {
 	workflowClient := mockr.getMockedWorkflowServiceClient()
 
 	want := []string{
-		`{"level":"info","caller":"app/controller.go:42","msg":"workflow action controller started"}`,
-		`{"level":"info","caller":"app/controller.go:62","msg":"stopping controller"}`,
-		`{"level":"info","caller":"app/controller.go:47","msg":"tinklet stopped, good bye"}`,
+		`{"level":"info","msg":"workflow action controller started"}`,
+		`{"level":"info","msg":"stopping controller"}`,
+		`{"level":"info","msg":"tinklet stopped, good bye"}`,
 	}
 	capturedOut := captureOutput(func() {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -234,6 +234,7 @@ func captureOutput(f func()) []string {
 func defaultLogger() logr.Logger {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.TimeKey = ""
+	encoderConfig.CallerKey = ""
 	config := zap.Config{
 		Level:         zap.NewAtomicLevelAt(zap.InfoLevel),
 		Encoding:      "json",
