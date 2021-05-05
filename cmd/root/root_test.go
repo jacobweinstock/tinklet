@@ -1,4 +1,4 @@
-package cmd
+package root
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestFlagStringMethod(t *testing.T) {
-	expectedOut := "[]"
+	expectedOut := `{"Name":"","User":"","Pass":""}`
 	r := &registries{}
 	out := r.String()
 	if diff := cmp.Diff(out, expectedOut); diff != "" {
@@ -26,8 +26,4 @@ func TestFlagSetMethod(t *testing.T) {
 	if diff := cmp.Diff(err, nil); diff != "" {
 		t.Fatal(diff)
 	}
-}
-
-func TestInitConfig(t *testing.T) {
-
 }

@@ -1,4 +1,4 @@
-package cmd
+package grpcopts
 
 import (
 	"crypto/tls"
@@ -84,8 +84,8 @@ func loadTLSFromHTTP(val string) (grpc.DialOption, error) {
 	return grpc.WithTransportCredentials(creds), nil
 }
 
-// loadTLSFromValue is the logic for how/from where TLS should be loaded
-func loadTLSFromValue(tlsVal string) (grpc.DialOption, error) {
+// LoadTLSFromValue is the logic for how/from where TLS should be loaded
+func LoadTLSFromValue(tlsVal string) (grpc.DialOption, error) {
 	u, err := url.Parse(tlsVal)
 	if err != nil {
 		return nil, errors.Wrap(err, "must be file://, http://, or string boolean")

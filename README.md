@@ -16,24 +16,20 @@ tinklet is an implementation of the [tinkerbell worker](https://docs.tinkerbell.
 ## Usage
 
 ```bash
-Usage of tinklet:
-  -config string
-        config file (optional) (default "tinklet.yaml")
-  -identifier string
-        worker id (required)
-  -loglevel string
-        log level (optional) (default "info")
-  -registry value
-        container image registry (optional)
-        {"name":"localhost:5000","user":"admin","password":"password123"}
-  -tink string
-        tink server url (required)
-        192.168.1.214:42113
-  -tls string
-        tink server TLS (optional) (default "false")
-        - file:///path/to/cert/tink.cert
-        - http://tink-server:42114/cert
-        - boolean (false - no TLS, true - tink has a cert from known CA)
+USAGE
+  tinklet [flags] <subcommand>
+
+SUBCOMMANDS
+  docker  run the tinklet using the docker backend.
+  kube    run the tinklet using the kubernetes backend.
+
+FLAGS
+  -config tinklet.yaml                       config file (optional)
+  -identifier ...                            worker id (required)
+  -loglevel info                             log level (optional)
+  -registry {"Name":"","User":"","Pass":""}  container image registry (optional)
+  -tink ...                                  tink server url (required)
+  -tls false                                 tink server TLS (optional)
 ```
 
 ## Design Philosophies
@@ -45,58 +41,3 @@ Usage of tinklet:
 5. functions/methods are as test-able as possible
 6. less code, less bugs
 7. prefer explicit over implicit
-
-## Lines of code
-
-<details>
-  <summary>tinklet:</summary>
-
-```bash
---------------------------------------------------------------------------------
-File                          files          blank        comment           code
---------------------------------------------------------------------------------
-./app/controller.go                             10             28            155
-./cmd/tinklet.go                                14             11             95
-./pkg/tink/workflow.go                          13             10             89
-./cmd/grpc_tls.go                                8             12             82
-./pkg/container/container.go                     7              6             62
-./cmd/config.go                                  7             21             45
-./main.go                                        7              0             34
-./pkg/tink/hardware.go                           7              6             30
-./cmd/logger.go                                  4              1             23
-./app/errors.go                                  5              2             20
---------------------------------------------------------------------------------
-TOTAL                            10             82             97            635
---------------------------------------------------------------------------------
-```
-
-</details>
-
-<details>
-  <summary>tink-worker:</summary>
-
-```bash
---------------------------------------------------------------------------
-File                    files          blank        comment           code
---------------------------------------------------------------------------
-./internal/worker.go                      54              9            436
-./cmd/root.go                             30              8            138
-./internal/action.go                      16              6             97
-./internal/registry.go                    11              6             78
-./main.go                                  8              1             23
---------------------------------------------------------------------------
-TOTAL                       5            119             30            772
---------------------------------------------------------------------------
-```
-
-</details>
-
-<details>
-  <summary>How lines of code are calculated:</summary>
-
-```bash
-docker run --rm -v "${PWD}":/workdir hhatto/gocloc --exclude-ext=yaml,bash,md,Makefile --by-file $(find . -name "*.go" ! -name "*_test.go" -not -path "./scripts/*" ) 
-```
-
-</details>
-

@@ -34,8 +34,9 @@ func main() {
 	}()
 
 	if err := cmd.Execute(ctx); err != nil {
-		fmt.Printf(`{"level":"error","msg":"tinklet failed","err":"%v"}`, err)
-		fmt.Println()
+		fmt.Fprintln(os.Stderr, err)
+		//fmt.Printf(`{"level":"error","msg":"tinklet failed","err":"%v"}`, err)
+		//fmt.Println()
 		exitCode = 1
 	}
 }
