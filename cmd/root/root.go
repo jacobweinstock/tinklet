@@ -18,8 +18,8 @@ type Config struct {
 	LogLevel string
 	// Config is the location to a config file
 	Config string
-	// Identifier is the worker ID used to get workflow tasks to run
-	Identifier string `validate:"required,mac|ip"`
+	// ID is the worker ID used to get workflow tasks to run
+	ID string `validate:"required,mac|ip"`
 	// Tink is the URL:Port for the tink server
 	Tink string `validate:"required"`
 	// TLS can be one of the following
@@ -78,11 +78,10 @@ func New() (*ffcli.Command, *Config) {
 func (c *Config) RegisterFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.LogLevel, "loglevel", "info", "log level (optional)")
 	fs.StringVar(&c.Config, "config", "tinklet.yaml", "config file (optional)")
-	fs.StringVar(&c.Identifier, "identifier", "", "worker id (required)")
-	fs.StringVar(&c.Tink, "tink", "", "tink server url (required)")
-	fs.StringVar(&c.TLS, "tls", "false", "tink server TLS (optional)")
+	fs.StringVar(&c.ID, "id", "", "worker id (required)")
+	fs.StringVar(&c.Tink, "tink", "", "tink server URL (required)")
+	fs.StringVar(&c.TLS, "tls", "false", "tink server TLS (file:///path/to/cert/tink.cert, http://tink-server:42114/cert, boolean (false - no TLS, true - tink has a cert from known CA) (optional)")
 	fs.Var(&c.Registry, "registry", "container image registry (optional)")
-	//- file:///path/to/cert/tink.cert\n- http://tink-server:42114/cert\n- boolean (false - no TLS, true - tink has a cert from known CA)
 }
 
 // Exec function for this command.

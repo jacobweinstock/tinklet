@@ -97,10 +97,6 @@ func (c *Config) runDocker(ctx context.Context) error {
 		break
 	}
 
-	// setup the workflow rpc service client - enables us to get workflows
-	workflowClient := workflow.NewWorkflowServiceClient(conn)
-	// setup the hardware rpc service client - enables us to the workerID (which is the hardware data ID)
-	hardwareClient := hardware.NewHardwareServiceClient(conn)
 	// create a base64 encoded auth string per user defined repo
 	registryAuth := make(map[string]string)
 	for _, elem := range c.rootConfig.Registry {
@@ -112,8 +108,12 @@ func (c *Config) runDocker(ctx context.Context) error {
 
 	var controllerWg sync.WaitGroup
 	controllerWg.Add(1)
-
-	go app.Controller(ctx, c.rootConfig.Log, c.rootConfig.Identifier, &docker.Client{Conn: dockerClient, RegistryAuth: registryAuth}, workflowClient, hardwareClient, &controllerWg)
+	d := &docker.Client{Conn: dockerClient, RegistryAuth: registryAuth}
+	// setup the workflow rpc service client - enables us to get workflows
+	workflowClient := workflow.NewWorkflowServiceClient(conn)
+	// setup the hardware rpc service client - enables us to the workerID (which is the hardware data ID)
+	hardwareClient := hardware.NewHardwareServiceClient(conn)
+	go app.Controller(ctx, c.rootConfig.Log, c.rootConfig.ID, d, workflowClient, hardwareClient, &controllerWg)
 
 	c.rootConfig.Log.V(0).Info("workflow action controller started")
 

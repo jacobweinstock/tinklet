@@ -116,7 +116,7 @@ func (c *Config) runKube(ctx context.Context) error {
 	workflowClient := workflow.NewWorkflowServiceClient(conn)
 	// setup the hardware rpc service client - enables us to the workerID (which is the hardware data ID)
 	hardwareClient := hardware.NewHardwareServiceClient(conn)
-	go app.Controller(ctx, c.rootConfig.Log, c.rootConfig.Identifier, k, workflowClient, hardwareClient, &controllerWg)
+	go app.Controller(ctx, c.rootConfig.Log, c.rootConfig.ID, k, workflowClient, hardwareClient, &controllerWg)
 	c.rootConfig.Log.V(0).Info("workflow action controller started")
 
 	// graceful shutdown when a signal is caught
