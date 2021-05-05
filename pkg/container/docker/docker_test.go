@@ -1,4 +1,4 @@
-package container
+package docker
 
 import (
 	"context"
@@ -87,7 +87,8 @@ func TestActualPull(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	err = PullImage(ctx, cl, imageName, pullOpts)
+	client := Client{Conn: cl}
+	err = client.pullImage(ctx, imageName, pullOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +111,8 @@ func TestActualCreateContainer(t *testing.T) {
 	hostConf := &tainer.HostConfig{
 		Privileged: true,
 	}
-	id, err := CreateContainer(ctx, cl, "jacob-test", conf, hostConf)
+	client := Client{Conn: cl}
+	id, err := client.createContainer(ctx, "jacob-test", conf, hostConf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +139,8 @@ func TestCreateContainer(t *testing.T) {
 				},
 			}
 			mClient := mockClient{mock: helper}
-			id, err := CreateContainer(context.Background(), &mClient, "testing", nil, nil)
+			client := Client{Conn: &mClient}
+			id, err := client.createContainer(context.Background(), "testing", nil, nil)
 			if err != nil {
 				if tc.expectedErr != nil {
 					if diff := cmp.Diff(err.Error(), tc.expectedErr.Error()); diff != "" {
@@ -175,7 +178,8 @@ func TestContainerGetLogs(t *testing.T) {
 				},
 			}
 			mClient := mockClient{mock: helper}
-			logs, err := ContainerGetLogs(context.Background(), &mClient, tc.expectedContainerID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: false})
+			client := Client{Conn: &mClient}
+			logs, err := client.containerGetLogs(context.Background(), tc.expectedContainerID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: false})
 			if err != nil {
 				if tc.expectedErr != nil {
 					if diff := cmp.Diff(err.Error(), tc.expectedErr.Error()); diff != "" {
@@ -214,7 +218,8 @@ func TestContainerRunComplete(t *testing.T) {
 				},
 			}
 			mClient := mockClient{mock: helper}
-			complete, _, err := ContainerExecComplete(context.Background(), &mClient, tc.expectedContainerID)
+			client := Client{Conn: &mClient}
+			complete, _, err := client.containerExecComplete(context.Background(), tc.expectedContainerID)
 			if err != nil {
 				if tc.expectedContainerRunCompleteErr != nil {
 					if diff := cmp.Diff(err.Error(), tc.expectedContainerRunCompleteErr.Error()); diff != "" {
@@ -264,7 +269,8 @@ func TestPullImage(t *testing.T) {
 			}
 			mClient := mockClient{mock: helper}
 			ctx := context.Background()
-			err := PullImage(ctx, &mClient, "something", types.ImagePullOptions{})
+			client := Client{Conn: &mClient}
+			err := client.pullImage(ctx, "something", types.ImagePullOptions{})
 			if err != nil {
 				if tc.testErr != nil {
 					if diff := cmp.Diff(err.Error(), tc.testErr.Error()); diff != "" {

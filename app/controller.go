@@ -2,16 +2,10 @@ package app
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	tainer "github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
 	"github.com/go-logr/logr"
-	"github.com/jacobweinstock/tinklet/pkg/container"
 	"github.com/jacobweinstock/tinklet/pkg/tink"
 	"github.com/pkg/errors"
 	"github.com/tinkerbell/tink/protos/hardware"
@@ -19,13 +13,49 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Reconciler control loop for executing workflow task actions
+type Runner interface {
+	EnvironmentRunner
+	ContainerRunner
+}
+
+type EnvironmentRunner interface {
+	// PrepareEnv should do things like create namespaces, configs, secrets, etc
+	PrepareEnv(ctx context.Context, id string) error
+	// CleanEnv should remove anything that was created when PrepareEnv was called
+	CleanEnv(ctx context.Context) error
+}
+
+type ContainerRunner interface {
+	// Prepare should create (not run) any containers/pods, setup the environment, mounts, etc
+	Prepare(ctx context.Context, imageName string) (id string, err error)
+	// Run should execution the action and wait for completion
+	Run(ctx context.Context, id string) error
+	// Destroy should handle removing all things created/setup in Prepare
+	Destroy(ctx context.Context) error
+	// SetActionData gets the action data into the implementation
+	SetActionData(ctx context.Context, workflowID string, action *workflow.WorkflowAction)
+}
+
+// RunController starts the control loop and waits for a context cancel/done to return
+func RunController(ctx context.Context, log logr.Logger, id string, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, backend Runner) {
+	var controllerWg sync.WaitGroup
+	controllerWg.Add(1)
+	go controller(ctx, log, id, backend, workflowClient, hardwareClient, &controllerWg)
+	log.V(0).Info("workflow action controller started")
+
+	// graceful shutdown when a signal is caught
+	<-ctx.Done()
+	controllerWg.Wait()
+	log.V(0).Info("tinklet stopped, good bye")
+}
+
+// controller is the control loop for executing workflow task actions
 // 1. is there a workflow task to execute?
 // 1a. if yes - get workflow tasks based on workflowID and workerID
 // 1b. if no - ask again later
 // TODO: assume action executions are idempotent, meaning keep trying them until they they succeed
 // TODO; make action executions declarative, meaning we can determine current status and desired state. allows retrying executions
-func Reconciler(ctx context.Context, log logr.Logger, identifier string, registryAuth map[string]string, dockerClient dClient, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, stopControllerWg *sync.WaitGroup) {
+func controller(ctx context.Context, log logr.Logger, identifier string, runner Runner, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, stopControllerWg *sync.WaitGroup) {
 	initialLog := log
 	for {
 		log = initialLog
@@ -62,6 +92,11 @@ func Reconciler(ctx context.Context, log logr.Logger, identifier string, registr
 			if err != nil {
 				break
 			}
+			// prepare environment for the workflow task
+			if err := runner.PrepareEnv(ctx, id.GetWorkflowId()); err != nil {
+				log.V(0).Error(err, "unable to prepare environment")
+				break
+			}
 			for _, elem := range acts {
 				actionLog := log.WithValues("action", &elem)
 				_, reportErr := workflowClient.ReportActionStatus(ctx, &workflow.WorkflowActionStatus{
@@ -75,19 +110,14 @@ func Reconciler(ctx context.Context, log logr.Logger, identifier string, registr
 					WorkerId:     workerID,
 				})
 				if reportErr != nil {
-					// we only log here because we prefer the running of actions over being able to report them
+					// we only log here and then continue running actions because we prefer
+					// the running of actions over being able to report them
 					actionLog.V(0).Error(reportErr, "error sending action status report")
 				}
+
 				actionLog.V(0).Info("executing action")
 				start := time.Now()
-				err = ActionExecutionFlow(ctx, log, dockerClient, elem.Image,
-					types.ImagePullOptions{RegistryAuth: getRegistryAuth(registryAuth, elem.Image)},
-					tink.ActionToDockerContainerConfig(ctx, elem), // nolint
-					tink.ActionToDockerHostConfig(ctx, elem),      // nolint
-					// spaces in a container name are not valid, add a timestamp so the container name is always unique.
-					fmt.Sprintf("%v-%v", strings.ReplaceAll(elem.Name, " ", "-"), time.Now().UnixNano()),
-					(time.Duration(elem.Timeout) * time.Second),
-				)
+				err = actionFlow(ctx, runner, elem, elem.Image, id.WorkflowId)
 				elapsed := time.Since(start)
 				actStatus := workflow.State_STATE_SUCCESS
 				var actionFailed bool
@@ -119,75 +149,27 @@ func Reconciler(ctx context.Context, log logr.Logger, identifier string, registr
 					break
 				}
 			}
+			// clean up workflow task environment
+			if err := runner.CleanEnv(ctx); err != nil {
+				log.V(0).Error(err, "unable to clean up environment")
+				break
+			}
 		}
 	}
 }
 
-func getRegistryAuth(regAuth map[string]string, imageName string) string {
-	for reg, auth := range regAuth {
-		if strings.HasPrefix(imageName, reg) {
-			return auth
-		}
-	}
-	return ""
-}
-
-type dClient interface {
-	client.ContainerAPIClient
-	client.ImageAPIClient
-}
-
-// ActionExecutionFlow is the lifecyle of a container execution
+// actionFlow is the lifecycle of an action
 // business/domain logic for executing an action
-// =============================================
-// 1. Pull the image
-// 2. Create the container
-// 3. Start the container
-// 4. Removal of container is go "deferred"
-// 5. Wait and watch for container exit status or timeout
-func ActionExecutionFlow(ctx context.Context, log logr.Logger, dockerClient dClient, imageName string, pullOpts types.ImagePullOptions, containerConfig *tainer.Config, hostConfig *tainer.HostConfig, containerName string, timeout time.Duration) error {
-	// 1. Pull the image
-	if err := container.PullImage(ctx, dockerClient, imageName, pullOpts); err != nil {
-		return errors.Wrap(&ExecutionError{Msg: "image pull failed"}, err.Error())
-	}
-	// 2. create container
-	containerID, err := container.CreateContainer(ctx, dockerClient, containerName, containerConfig, hostConfig)
+func actionFlow(ctx context.Context, client ContainerRunner, action *workflow.WorkflowAction, imageName string, workflowID string) error {
+	// 1. Set the action data
+	client.SetActionData(ctx, workflowID, action)
+	// 2. Removal of environment (containers, etc)
+	defer client.Destroy(ctx) // nolint
+	// 3. Prepare to run the action
+	id, err := client.Prepare(ctx, imageName)
 	if err != nil {
-		return errors.Wrap(&ExecutionError{Msg: "creating container failed"}, err.Error())
+		return err
 	}
-	// 3. Removal of container is go "deferred"
-	defer dockerClient.ContainerRemove(ctx, containerID, types.ContainerRemoveOptions{Force: true}) // nolint
-	// 4. Start container
-	if err = dockerClient.ContainerStart(ctx, containerID, types.ContainerStartOptions{}); err != nil {
-		return errors.Wrap(&ExecutionError{Msg: "starting container failed"}, err.Error())
-	}
-	// 5. Wait and watch for container exit status or timeout
-	timer := time.NewTimer(timeout)
-	var detail types.ContainerJSON
-LOOP:
-	for {
-		select {
-		case r := <-timer.C:
-			return &TimeoutError{TimeoutValue: time.Duration(r.Unix())}
-		default:
-			var ok bool
-			ok, detail, err = container.ContainerExecComplete(ctx, dockerClient, containerID)
-			if err != nil {
-				return errors.Wrap(&ExecutionError{Msg: "waiting for container failed"}, err.Error())
-			}
-			if ok {
-				break LOOP
-			}
-		}
-	}
-
-	if detail.ContainerJSONBase == nil {
-		return errors.New("container details was nil, cannot tell success or failure status without these details")
-	}
-	// container execution completed successfully
-	if detail.State.ExitCode == 0 {
-		return nil
-	}
-	logs, _ := container.ContainerGetLogs(ctx, dockerClient, containerID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
-	return fmt.Errorf("msg: container execution was unsuccessful; logs: %v;  exitCode: %v; details: %v", logs, detail.State.ExitCode, detail.State.Error)
+	// 4. Run the action
+	return client.Run(ctx, id)
 }
