@@ -14,8 +14,16 @@ import (
 )
 
 type Runner interface {
+	EnvironmentRunner
+	ContainerRunner
+}
+
+type EnvironmentRunner interface {
 	PrepareEnv(ctx context.Context, id string) error
 	CleanEnv(ctx context.Context) error
+}
+
+type ContainerRunner interface {
 	// Prepare should create (not run) any containers/pods, setup the environment, mounts, etc
 	Prepare(ctx context.Context, imageName string) (id string, err error)
 	// Run should execution the action and wait for completion
@@ -150,7 +158,7 @@ func controller(ctx context.Context, log logr.Logger, identifier string, runner 
 
 // actionFlow is the lifecyle of an action execution
 // business/domain logic for executing an action
-func actionFlow(ctx context.Context, client Runner, action *workflow.WorkflowAction, imageName string, workflowID string) error {
+func actionFlow(ctx context.Context, client ContainerRunner, action *workflow.WorkflowAction, imageName string, workflowID string) error {
 	// 1. Set the action data
 	client.SetActionData(ctx, workflowID, action)
 	// 2. Removal of environment (containers, etc)
