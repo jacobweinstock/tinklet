@@ -16,6 +16,12 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+const (
+	schemeFile  = "file"
+	schemeHTTP  = "http"
+	schemeHTTPS = "https"
+)
+
 // toCreds takes a byte string, assumed to be a tls cert, and creates a transport credential
 func toCreds(pemCerts []byte) (credentials.TransportCredentials, error) {
 	cp := x509.NewCertPool()
@@ -30,12 +36,8 @@ func toCreds(pemCerts []byte) (credentials.TransportCredentials, error) {
 // and creating a grpc.DialOption for TLS.
 // If the value is true, the server has a cert from a well known CA.
 // If the value is false, the server is not using TLS
-func loadTLSSecureOpts(val string) (grpc.DialOption, error) {
+func loadTLSSecureOpts(secure bool) (grpc.DialOption, error) {
 	var dialOpt grpc.DialOption
-	secure, err := strconv.ParseBool(val)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "expected boolean, got: %v", val)
-	}
 	if secure {
 		// 1. the server has a cert from a well known CA - grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 		dialOpt = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{}))
@@ -47,16 +49,8 @@ func loadTLSSecureOpts(val string) (grpc.DialOption, error) {
 }
 
 // loadTLSFromFile handles reading in a cert file and forming a TLS grpc.DialOption
-func loadTLSFromFile(val string) (grpc.DialOption, error) {
+func loadTLSFromFile(data []byte) (grpc.DialOption, error) {
 	// 3. the server has a self-signed cert and the cert have be provided via file/env/flag -
-	u, err := url.Parse(val)
-	if err != nil {
-		return nil, errors.Wrap(err, "must be file:// schema")
-	}
-	data, err := os.ReadFile(filepath.Join(u.Host, u.Path))
-	if err != nil {
-		return nil, err
-	}
 	creds, err := toCreds(data)
 	if err != nil {
 		return nil, err
@@ -65,19 +59,9 @@ func loadTLSFromFile(val string) (grpc.DialOption, error) {
 }
 
 // loadTLSFromHTTP handles reading a cert from an HTTP endpoint and forming a TLS grpc.DialOption
-func loadTLSFromHTTP(val string) (grpc.DialOption, error) {
+func loadTLSFromHTTP(cert []byte) (grpc.DialOption, error) {
 	// 4. the server has a self-signed cert and the cert needs to be grabbed from a URL -
-	resp, err := http.Get(val)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	cert, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	creds, err := toCreds([]byte(cert))
+	creds, err := toCreds(cert)
 	if err != nil {
 		return nil, err
 	}
@@ -92,11 +76,29 @@ func LoadTLSFromValue(tlsVal string) (grpc.DialOption, error) {
 	}
 	switch u.Scheme {
 	case "":
-		return loadTLSSecureOpts(tlsVal)
-	case "file":
-		return loadTLSFromFile(tlsVal)
-	case "http":
-		return loadTLSFromHTTP(tlsVal)
+		secure, err := strconv.ParseBool(tlsVal)
+		if err != nil {
+			return nil, errors.WithMessagef(err, "expected boolean, got: %v", tlsVal)
+		}
+		return loadTLSSecureOpts(secure)
+	case schemeFile:
+		data, err := os.ReadFile(filepath.Join(u.Host, u.Path))
+		if err != nil {
+			return nil, err
+		}
+		return loadTLSFromFile(data)
+	case schemeHTTP, schemeHTTPS:
+		resp, err := http.Get(tlsVal)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		cert, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		return loadTLSFromHTTP(cert)
 	}
 	return nil, fmt.Errorf("not an expected value: %v", tlsVal)
 }
