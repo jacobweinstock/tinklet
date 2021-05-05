@@ -35,10 +35,10 @@ FLAGS
 
 ## Design Philosophies
 
-1. simple
-2. prefer easy to understand over easy to do
-3. `pkg` packages do not log
-4. `pkg` is generic, reuseable code
-5. functions/methods are as test-able as possible
-6. less code, less bugs
-7. prefer explicit over implicit
+1. prefer easy to understand over easy to do
+2. `pkg` packages do not log only return errors
+3. `pkg` is generic, reuseable code
+4. functions/methods should follow the single responsibility principle
+5. less code, less bugs
+6. prefer explicit over implicit
+7. avoid global/package level variables as much as possible
