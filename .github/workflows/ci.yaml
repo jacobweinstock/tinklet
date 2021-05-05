@@ -18,8 +18,8 @@ jobs:
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v2
       with:
-        version: v1.32
-        args: -v -D errcheck
+        version: v1.39
+        args: -v -D errcheck --timeout=5m
     - name: goimports
       run: go get golang.org/x/tools/cmd/goimports && make goimports-check
     - name: go test
