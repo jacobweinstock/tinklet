@@ -35,7 +35,10 @@ type Config struct {
 	// during workflow task action execution
 	Registry registries `yaml:"registries"`
 	AppName  string
-	Log      logr.Logger
+	// RegistryAuth holds a map of repo names to base64 encoded auth string
+	// this is used to login to container registries to pull images down
+	RegistryAuth map[string]string
+	Log          logr.Logger
 }
 
 // needed for (*flag.FlagSet).Var

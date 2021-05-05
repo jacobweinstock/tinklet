@@ -2,9 +2,12 @@ package cmd
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 
+	"github.com/docker/docker/api/types"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/go-playground/validator/v10"
@@ -37,6 +40,13 @@ func Execute(ctx context.Context) error {
 		return err
 	}
 	rootConfig.Log = defaultLogger(rootConfig.LogLevel)
+	// create a base64 encoded auth string per user defined repo
+	for _, elem := range rootConfig.Registry {
+		rootConfig.RegistryAuth[elem.Name] = encodeRegistryAuth(types.AuthConfig{
+			Username: elem.User,
+			Password: elem.Pass,
+		})
+	}
 
 	if err := rootCommand.Run(ctx); err != nil {
 		return err
@@ -60,4 +70,12 @@ func defaultLogger(level string) logr.Logger {
 	}
 
 	return zapr.NewLogger(zapLogger)
+}
+
+func encodeRegistryAuth(v types.AuthConfig) string {
+	encodedAuth, err := json.Marshal(v)
+	if err != nil {
+		return ""
+	}
+	return base64.URLEncoding.EncodeToString(encodedAuth)
 }

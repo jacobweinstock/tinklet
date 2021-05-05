@@ -2,14 +2,9 @@ package docker
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
-	"errors"
 	"flag"
-	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/jacobweinstock/tinklet/app"
 	"github.com/jacobweinstock/tinklet/cmd/root"
@@ -21,11 +16,13 @@ import (
 	"google.golang.org/grpc"
 )
 
-const bootDeviceCmd = "docker"
+const dockerCmd = "docker"
 
 // Config for the create subcommand, including a reference to the API client.
 type Config struct {
-	rootConfig *root.Config
+	rootConfig   *root.Config
+	grpcClient   *grpc.ClientConn
+	dockerClient *client.Client
 }
 
 func New(rootConfig *root.Config) *ffcli.Command {
@@ -33,10 +30,10 @@ func New(rootConfig *root.Config) *ffcli.Command {
 		rootConfig: rootConfig,
 	}
 
-	fs := flag.NewFlagSet(bootDeviceCmd, flag.ExitOnError)
+	fs := flag.NewFlagSet(dockerCmd, flag.ExitOnError)
 
 	return &ffcli.Command{
-		Name:       bootDeviceCmd,
+		Name:       dockerCmd,
 		ShortUsage: "tinklet docker",
 		ShortHelp:  "run the tinklet using the docker backend.",
 		FlagSet:    fs,
@@ -44,33 +41,31 @@ func New(rootConfig *root.Config) *ffcli.Command {
 	}
 }
 
-func (c *Config) RegisterFlags(fs *flag.FlagSet) {
-
-}
-
 // Exec function for this command.
 func (c *Config) Exec(ctx context.Context, args []string) error {
-	return c.runDocker(ctx)
+	c.setupClients(ctx)
+	// setup the workflow rpc service client - enables us to get workflows
+	workflowClient := workflow.NewWorkflowServiceClient(c.grpcClient)
+	// setup the hardware rpc service client - enables us to get the workerID (which is the hardware data ID)
+	hardwareClient := hardware.NewHardwareServiceClient(c.grpcClient)
+	app.RunController(ctx, c.rootConfig.Log, c.rootConfig.ID, workflowClient, hardwareClient, &docker.Client{Conn: c.dockerClient, RegistryAuth: c.rootConfig.RegistryAuth})
+	return nil
 }
 
-func (c *Config) runDocker(ctx context.Context) error {
-	var dockerClient *client.Client
-	var conn *grpc.ClientConn
-	var err error
-	// small control loop to create docker client and connect to tink server
-	// keep trying so that if the problem is temporary or can be resolved the
-	// tinklet doesn't stop and need to be restarted by an outside process or person.
-	// TODO: signals arent being caught here, no way to exit
+// setupClients is a small control loop to create docker client and tink server client.
+// it keeps trying so that if the problem is temporary or can be resolved the
+// tinklet doesn't stop and need to be restarted by an outside process or person.
+func (c *Config) setupClients(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			return errors.New("breaking out")
+			return
 		default:
 		}
 		// setup local container runtime client
-
-		if dockerClient == nil {
-			dockerClient, err = client.NewClientWithOpts()
+		var err error
+		if c.dockerClient == nil {
+			c.dockerClient, err = client.NewClientWithOpts()
 			if err != nil {
 				c.rootConfig.Log.V(0).Error(err, "error creating docker client")
 				time.Sleep(time.Second * 3)
@@ -79,7 +74,7 @@ func (c *Config) runDocker(ctx context.Context) error {
 		}
 
 		// setup tink server grpc client
-		if conn == nil {
+		if c.grpcClient == nil {
 			dialOpt, err := grpcopts.LoadTLSFromValue(c.rootConfig.TLS)
 			if err != nil {
 				c.rootConfig.Log.V(0).Error(err, "error creating gRPC client TLS dial option")
@@ -87,7 +82,7 @@ func (c *Config) runDocker(ctx context.Context) error {
 				continue
 			}
 
-			conn, err = grpc.DialContext(ctx, c.rootConfig.Tink, dialOpt)
+			c.grpcClient, err = grpc.DialContext(ctx, c.rootConfig.Tink, dialOpt)
 			if err != nil {
 				c.rootConfig.Log.V(0).Error(err, "error connecting to tink server")
 				time.Sleep(time.Second * 3)
@@ -96,38 +91,4 @@ func (c *Config) runDocker(ctx context.Context) error {
 		}
 		break
 	}
-
-	// create a base64 encoded auth string per user defined repo
-	registryAuth := make(map[string]string)
-	for _, elem := range c.rootConfig.Registry {
-		registryAuth[elem.Name] = encodeRegistryAuth(types.AuthConfig{
-			Username: elem.User,
-			Password: elem.Pass,
-		})
-	}
-
-	var controllerWg sync.WaitGroup
-	controllerWg.Add(1)
-	d := &docker.Client{Conn: dockerClient, RegistryAuth: registryAuth}
-	// setup the workflow rpc service client - enables us to get workflows
-	workflowClient := workflow.NewWorkflowServiceClient(conn)
-	// setup the hardware rpc service client - enables us to the workerID (which is the hardware data ID)
-	hardwareClient := hardware.NewHardwareServiceClient(conn)
-	go app.Controller(ctx, c.rootConfig.Log, c.rootConfig.ID, d, workflowClient, hardwareClient, &controllerWg)
-
-	c.rootConfig.Log.V(0).Info("workflow action controller started")
-
-	// graceful shutdown when a signal is caught
-	<-ctx.Done()
-	controllerWg.Wait()
-	c.rootConfig.Log.V(0).Info("tinklet stopped, good bye")
-	return nil
-}
-
-func encodeRegistryAuth(v types.AuthConfig) string {
-	encodedAuth, err := json.Marshal(v)
-	if err != nil {
-		return ""
-	}
-	return base64.URLEncoding.EncodeToString(encodedAuth)
 }

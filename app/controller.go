@@ -26,13 +26,26 @@ type Runner interface {
 	SetActionData(ctx context.Context, workflowID string, action *workflow.WorkflowAction)
 }
 
-// Controller is the control loop for executing workflow task actions
+// RunController starts the control loop and waits for a context cancel/done to return
+func RunController(ctx context.Context, log logr.Logger, id string, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, backend Runner) {
+	var controllerWg sync.WaitGroup
+	controllerWg.Add(1)
+	go controller(ctx, log, id, backend, workflowClient, hardwareClient, &controllerWg)
+	log.V(0).Info("workflow action controller started")
+
+	// graceful shutdown when a signal is caught
+	<-ctx.Done()
+	controllerWg.Wait()
+	log.V(0).Info("tinklet stopped, good bye")
+}
+
+// controller is the control loop for executing workflow task actions
 // 1. is there a workflow task to execute?
 // 1a. if yes - get workflow tasks based on workflowID and workerID
 // 1b. if no - ask again later
 // TODO: assume action executions are idempotent, meaning keep trying them until they they succeed
 // TODO; make action executions declarative, meaning we can determine current status and desired state. allows retrying executions
-func Controller(ctx context.Context, log logr.Logger, identifier string, runner Runner, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, stopControllerWg *sync.WaitGroup) {
+func controller(ctx context.Context, log logr.Logger, identifier string, runner Runner, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, stopControllerWg *sync.WaitGroup) {
 	initialLog := log
 	for {
 		log = initialLog
@@ -87,13 +100,14 @@ func Controller(ctx context.Context, log logr.Logger, identifier string, runner 
 					WorkerId:     workerID,
 				})
 				if reportErr != nil {
-					// we only log here because we prefer the running of actions over being able to report them
+					// we only log here and then continue running actions because we prefer
+					// the running of actions over being able to report them
 					actionLog.V(0).Error(reportErr, "error sending action status report")
 				}
 
 				actionLog.V(0).Info("executing action")
 				start := time.Now()
-				err = ActionFlow(ctx, runner, elem, elem.Image, id.WorkflowId)
+				err = actionFlow(ctx, runner, elem, elem.Image, id.WorkflowId)
 				elapsed := time.Since(start)
 				actStatus := workflow.State_STATE_SUCCESS
 				var actionFailed bool
@@ -134,9 +148,9 @@ func Controller(ctx context.Context, log logr.Logger, identifier string, runner 
 	}
 }
 
-// ActionFlow is the lifecyle of an action execution
+// actionFlow is the lifecyle of an action execution
 // business/domain logic for executing an action
-func ActionFlow(ctx context.Context, client Runner, action *workflow.WorkflowAction, imageName string, workflowID string) error {
+func actionFlow(ctx context.Context, client Runner, action *workflow.WorkflowAction, imageName string, workflowID string) error {
 	// 1. Set the action data
 	client.SetActionData(ctx, workflowID, action)
 	// 2. Removal of environment (containers, etc)

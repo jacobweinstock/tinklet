@@ -7,7 +7,6 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -25,12 +24,14 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-const bootDeviceCmd = "kube"
+const kubeCmd = "kube"
 
 // Config for the create subcommand, including a reference to the API client.
 type Config struct {
 	rootConfig *root.Config
 	KubeConfig string
+	grpcClient *grpc.ClientConn
+	kubeClient kubernetes.Interface
 }
 
 func New(rootConfig *root.Config) *ffcli.Command {
@@ -38,11 +39,11 @@ func New(rootConfig *root.Config) *ffcli.Command {
 		rootConfig: rootConfig,
 	}
 
-	fs := flag.NewFlagSet(bootDeviceCmd, flag.ExitOnError)
+	fs := flag.NewFlagSet(kubeCmd, flag.ExitOnError)
 	cfg.RegisterFlags(fs)
 
 	return &ffcli.Command{
-		Name:       bootDeviceCmd,
+		Name:       kubeCmd,
 		ShortUsage: "tinklet kube",
 		ShortHelp:  "run the tinklet using the kubernetes backend.",
 		FlagSet:    fs,
@@ -56,25 +57,28 @@ func (c *Config) RegisterFlags(fs *flag.FlagSet) {
 
 // Exec function for this command.
 func (c *Config) Exec(ctx context.Context, args []string) error {
-	return c.runKube(ctx)
+	c.setupClients(ctx)
+	// setup the workflow rpc service client - enables us to get workflows
+	workflowClient := workflow.NewWorkflowServiceClient(c.grpcClient)
+	// setup the hardware rpc service client - enables us to get the workerID (which is the hardware data ID)
+	hardwareClient := hardware.NewHardwareServiceClient(c.grpcClient)
+	app.RunController(ctx, c.rootConfig.Log, c.rootConfig.ID, workflowClient, hardwareClient, &kube.Client{Conn: c.kubeClient, RegistryAuth: c.rootConfig.RegistryAuth})
+	return nil
 }
 
-func (c *Config) runKube(ctx context.Context) error {
-	var kubeClient kubernetes.Interface
-	var conn *grpc.ClientConn
-	var err error
-	// small control loop to create docker client and connect to tink server
-	// keep trying so that if the problem is temporary or can be resolved the
-	// tinklet doesn't stop and need to be restarted by an outside process or person.
-	// TODO: signals arent being caught here, no way to exit
+// setupClients is a small control loop to create kube client and tink server client.
+// it keep trying so that if the problem is temporary or can be resolved the
+// tinklet doesn't stop and need to be restarted by an outside process or person.
+func (c *Config) setupClients(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			return errors.New("breaking out")
+			return
 		default:
 		}
 		// setup local container runtime client
-		kubeClient, err = k8sLoadConfig(c.KubeConfig)
+		var err error
+		c.kubeClient, err = k8sLoadConfig(c.KubeConfig)
 		if err != nil {
 			c.rootConfig.Log.V(0).Error(err, "error creating kubernetes client")
 			time.Sleep(time.Second * 3)
@@ -82,7 +86,7 @@ func (c *Config) runKube(ctx context.Context) error {
 		}
 
 		// setup tink server grpc client
-		if conn == nil {
+		if c.grpcClient == nil {
 			dialOpt, err := grpcopts.LoadTLSFromValue(c.rootConfig.TLS)
 			if err != nil {
 				c.rootConfig.Log.V(0).Error(err, "error creating gRPC client TLS dial option")
@@ -90,7 +94,7 @@ func (c *Config) runKube(ctx context.Context) error {
 				continue
 			}
 
-			conn, err = grpc.DialContext(ctx, c.rootConfig.Tink, dialOpt)
+			c.grpcClient, err = grpc.DialContext(ctx, c.rootConfig.Tink, dialOpt)
 			if err != nil {
 				c.rootConfig.Log.V(0).Error(err, "error connecting to tink server")
 				time.Sleep(time.Second * 3)
@@ -99,31 +103,6 @@ func (c *Config) runKube(ctx context.Context) error {
 		}
 		break
 	}
-
-	// create a base64 encoded auth string per user defined repo
-	registryAuth := make(map[string]string)
-	for _, elem := range c.rootConfig.Registry {
-		registryAuth[elem.Name] = encodeRegistryAuth(types.AuthConfig{
-			Username: elem.User,
-			Password: elem.Pass,
-		})
-	}
-
-	var controllerWg sync.WaitGroup
-	controllerWg.Add(1)
-	k := &kube.Client{Conn: kubeClient, RegistryAuth: registryAuth}
-	// setup the workflow rpc service client - enables us to get workflows
-	workflowClient := workflow.NewWorkflowServiceClient(conn)
-	// setup the hardware rpc service client - enables us to the workerID (which is the hardware data ID)
-	hardwareClient := hardware.NewHardwareServiceClient(conn)
-	go app.Controller(ctx, c.rootConfig.Log, c.rootConfig.ID, k, workflowClient, hardwareClient, &controllerWg)
-	c.rootConfig.Log.V(0).Info("workflow action controller started")
-
-	// graceful shutdown when a signal is caught
-	<-ctx.Done()
-	controllerWg.Wait()
-	c.rootConfig.Log.V(0).Info("tinklet stopped, good bye")
-	return nil
 }
 
 func encodeRegistryAuth(v types.AuthConfig) string {
