@@ -2,14 +2,11 @@ package kube
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"flag"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/jacobweinstock/tinklet/app"
 	"github.com/jacobweinstock/tinklet/cmd/root"
 	"github.com/jacobweinstock/tinklet/pkg/container/kube"
@@ -103,14 +100,6 @@ func (c *Config) setupClients(ctx context.Context) {
 		}
 		break
 	}
-}
-
-func encodeRegistryAuth(v types.AuthConfig) string {
-	encodedAuth, err := json.Marshal(v)
-	if err != nil {
-		return ""
-	}
-	return base64.URLEncoding.EncodeToString(encodedAuth)
 }
 
 func k8sLoadConfig(filePath string) (kubernetes.Interface, error) {

@@ -2,7 +2,7 @@
 id: "00:00:00:00:00:00"
 tink: "192.168.1.214:42113"
 #TLS: false
-#kube: true
+#kubeConfig: /home/root/.kube/config
 registry:
 - name: "192.168.1.130"
   user: "admin"
