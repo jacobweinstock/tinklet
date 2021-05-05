@@ -12,6 +12,7 @@ tinklet is an implementation of the [tinkerbell worker](https://docs.tinkerbell.
 
 - auth for multiple container registries
 - multiple client-side TLS options for communicating with Tink server
+- multiple backends [docker, kubernetes] for running workflow task actions
 
 ## Usage
 
