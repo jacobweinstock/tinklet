@@ -42,7 +42,7 @@ func Execute(ctx context.Context) error {
 	rootConfig.Log = defaultLogger(rootConfig.LogLevel)
 	// create a base64 encoded auth string per user defined repo
 	for _, elem := range rootConfig.Registry {
-		rootConfig.RegistryAuth[elem.Name] = encodeRegistryAuth(types.AuthConfig{
+		rootConfig.RegistryAuth[elem.Name] = encodeRegistryAuth(&types.AuthConfig{
 			Username: elem.User,
 			Password: elem.Pass,
 		})
@@ -72,7 +72,7 @@ func defaultLogger(level string) logr.Logger {
 	return zapr.NewLogger(zapLogger)
 }
 
-func encodeRegistryAuth(v types.AuthConfig) string {
+func encodeRegistryAuth(v *types.AuthConfig) string {
 	encodedAuth, err := json.Marshal(v)
 	if err != nil {
 		return ""

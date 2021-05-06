@@ -57,6 +57,7 @@ func RunController(ctx context.Context, log logr.Logger, id string, workflowClie
 // TODO: assume action executions are idempotent, meaning keep trying them until they they succeed
 // TODO; make action executions declarative, meaning we can determine current status and desired state. allows retrying executions
 func controller(ctx context.Context, log logr.Logger, identifier string, runner Runner, workflowClient workflow.WorkflowServiceClient, hardwareClient hardware.HardwareServiceClient, stopControllerWg *sync.WaitGroup) {
+	const waitTime int = 3
 	initialLog := log
 	for {
 		log = initialLog
@@ -67,7 +68,7 @@ func controller(ctx context.Context, log logr.Logger, identifier string, runner 
 			return
 		default:
 		}
-		time.Sleep(3 * time.Second)
+		time.Sleep(time.Duration(waitTime) * time.Second)
 
 		// get the worker_id from tink server, this is the hardware id
 		workerID, err := tink.GetHardwareID(ctx, hardwareClient, identifier)
@@ -159,9 +160,8 @@ func controller(ctx context.Context, log logr.Logger, identifier string, runner 
 	}
 }
 
-// actionFlow is the lifecycle of an action
-// business/domain logic for executing an action
-func actionFlow(ctx context.Context, client ContainerRunner, action *workflow.WorkflowAction, imageName string, workflowID string) error {
+// actionFlow is the lifecycle of an action, business/domain logic for executing an action
+func actionFlow(ctx context.Context, client ContainerRunner, action *workflow.WorkflowAction, imageName, workflowID string) error {
 	// 1. Set the action data
 	client.SetActionData(ctx, workflowID, action)
 	// 2. Removal of environment (containers, etc)

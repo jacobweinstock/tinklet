@@ -63,7 +63,6 @@ func TestRunController(t *testing.T) {
 	if diff := cmp.Diff(want, capturedOut); diff != "" {
 		t.Errorf(diff)
 	}
-
 }
 
 type runnerMock struct {
@@ -179,7 +178,7 @@ func (m *mocker) getMockedWorkflowServiceClient() *workflow.WorkflowServiceClien
 		}
 		if m.failGetWorkflowActions {
 			resp = nil
-			err = errors.New("ah bad!")
+			err = errors.New("ah bad")
 		}
 		return resp, err
 	}

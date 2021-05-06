@@ -33,10 +33,10 @@ func TestGetActionsList(t *testing.T) {
 		err               error
 		ctxTimeout        time.Duration
 		mock              *mocker
-		filterByFunc      actionsFilterByFunc
+		filterByFunc      actFilterByFunc
 	}{
 		"success":                 {expectedWorkflows: []*workflow.WorkflowAction{{TaskName: "os-install", Name: "start", Image: "alpine", Timeout: 0, Command: []string{"/bin/sh", "sleep", "5"}, WorkerId: "12345"}}, mock: &mocker{}},
-		"fail to get action list": {err: errors.Wrap(errors.New("ah bad!"), "GetActionsList failed"), mock: &mocker{failGetWorkflowActions: true}},
+		"fail to get action list": {err: errors.Wrap(errors.New("ah bad"), "GetActionsList failed"), mock: &mocker{failGetWorkflowActions: true}},
 		"success with filter":     {expectedWorkflows: []*workflow.WorkflowAction{{TaskName: "os-install", Name: "start", Image: "alpine", Timeout: 0, Command: []string{"/bin/sh", "sleep", "5"}, WorkerId: "12345"}}, mock: &mocker{}, filterByFunc: FilterActionsByWorkerID("12345")},
 	}
 
@@ -154,7 +154,7 @@ func (m *mocker) getMockedWorkflowServiceClient() *workflow.WorkflowServiceClien
 		}
 		if m.failGetWorkflowActions {
 			resp = nil
-			err = errors.New("ah bad!")
+			err = errors.New("ah bad")
 		}
 		return resp, err
 	}
@@ -204,7 +204,7 @@ func TestReporting(t *testing.T) {
 }
 
 func TestActionToDockerConfig(t *testing.T) {
-	withTty := func(tty bool) containerConfigOption {
+	withTty := func(tty bool) configOpt {
 		return func(args *container.Config) { args.Tty = tty }
 	}
 	expected := &container.Config{
@@ -220,14 +220,14 @@ func TestActionToDockerConfig(t *testing.T) {
 		Command:     []string{"/bin/sh"},
 		Environment: []string{"test=one"},
 	}
-	got := ActionToDockerContainerConfig(context.Background(), &action, withTty(false)) // nolint
+	got := ToDockerConf(context.Background(), &action, withTty(false))
 	if diff := cmp.Diff(got, expected); diff != "" {
 		t.Fatal(diff)
 	}
 }
 
 func TestActionToDockerHostConfig(t *testing.T) {
-	withPid := func(pid string) containerHostOption {
+	withPid := func(pid string) hostOpt {
 		return func(args *container.HostConfig) { args.PidMode = container.PidMode(pid) }
 	}
 	expected := &container.HostConfig{
@@ -250,7 +250,7 @@ func TestActionToDockerHostConfig(t *testing.T) {
 		},
 		Pid: "host",
 	}
-	got := ActionToDockerHostConfig(context.Background(), &action, withPid("custom")) // nolint
+	got := ActionToDockerHostConfig(context.Background(), &action, withPid("custom"))
 	if diff := cmp.Diff(got, expected); diff != "" {
 		t.Fatal(diff)
 	}
@@ -263,7 +263,7 @@ func TestWorkflowContexts(t *testing.T) {
 		t.Fatal(err)
 	}
 	workerID := "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a94"
-	//workerID = "b3fa8f4f-f8f9-4a11-bdcc-265465aa87b7"
+	// workerID = "b3fa8f4f-f8f9-4a11-bdcc-265465aa87b7"
 	ws := workflow.NewWorkflowServiceClient(conn)
 	c, err := ws.GetWorkflowContexts(context.Background(), &workflow.WorkflowContextRequest{
 		WorkerId: workerID,

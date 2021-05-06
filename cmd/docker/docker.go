@@ -56,6 +56,7 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 // it keeps trying so that if the problem is temporary or can be resolved the
 // tinklet doesn't stop and need to be restarted by an outside process or person.
 func (c *Config) setupClients(ctx context.Context) {
+	const waitTime int = 3
 	for {
 		select {
 		case <-ctx.Done():
@@ -68,7 +69,7 @@ func (c *Config) setupClients(ctx context.Context) {
 			c.dockerClient, err = client.NewClientWithOpts()
 			if err != nil {
 				c.rootConfig.Log.V(0).Error(err, "error creating docker client")
-				time.Sleep(time.Second * 3)
+				time.Sleep(time.Duration(waitTime) * time.Second)
 				continue
 			}
 		}
@@ -78,14 +79,14 @@ func (c *Config) setupClients(ctx context.Context) {
 			dialOpt, err := grpcopts.LoadTLSFromValue(c.rootConfig.TLS)
 			if err != nil {
 				c.rootConfig.Log.V(0).Error(err, "error creating gRPC client TLS dial option")
-				time.Sleep(time.Second * 3)
+				time.Sleep(time.Duration(waitTime) * time.Second)
 				continue
 			}
 
 			c.grpcClient, err = grpc.DialContext(ctx, c.rootConfig.Tink, dialOpt)
 			if err != nil {
 				c.rootConfig.Log.V(0).Error(err, "error connecting to tink server")
-				time.Sleep(time.Second * 3)
+				time.Sleep(time.Duration(waitTime) * time.Second)
 				continue
 			}
 		}

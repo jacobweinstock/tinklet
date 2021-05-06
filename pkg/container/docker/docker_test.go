@@ -87,8 +87,8 @@ func TestActualPull(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	client := Client{Conn: cl}
-	err = client.pullImage(ctx, imageName, pullOpts)
+	cli := Client{Conn: cl}
+	err = cli.pullImage(ctx, imageName, pullOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,8 +111,8 @@ func TestActualCreateContainer(t *testing.T) {
 	hostConf := &tainer.HostConfig{
 		Privileged: true,
 	}
-	client := Client{Conn: cl}
-	id, err := client.createContainer(ctx, "jacob-test", conf, hostConf)
+	cli := Client{Conn: cl}
+	id, err := cli.createContainer(ctx, "jacob-test", conf, hostConf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,8 +139,8 @@ func TestCreateContainer(t *testing.T) {
 				},
 			}
 			mClient := mockClient{mock: helper}
-			client := Client{Conn: &mClient}
-			id, err := client.createContainer(context.Background(), "testing", nil, nil)
+			cli := Client{Conn: &mClient}
+			id, err := cli.createContainer(context.Background(), "testing", nil, nil)
 			if err != nil {
 				if tc.expectedErr != nil {
 					if diff := cmp.Diff(err.Error(), tc.expectedErr.Error()); diff != "" {
@@ -178,8 +178,8 @@ func TestContainerGetLogs(t *testing.T) {
 				},
 			}
 			mClient := mockClient{mock: helper}
-			client := Client{Conn: &mClient}
-			logs, err := client.containerGetLogs(context.Background(), tc.expectedContainerID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: false})
+			cli := Client{Conn: &mClient}
+			logs, err := cli.containerGetLogs(context.Background(), tc.expectedContainerID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: false})
 			if err != nil {
 				if tc.expectedErr != nil {
 					if diff := cmp.Diff(err.Error(), tc.expectedErr.Error()); diff != "" {
@@ -218,8 +218,8 @@ func TestContainerRunComplete(t *testing.T) {
 				},
 			}
 			mClient := mockClient{mock: helper}
-			client := Client{Conn: &mClient}
-			complete, _, err := client.containerExecComplete(context.Background(), tc.expectedContainerID)
+			cli := Client{Conn: &mClient}
+			complete, _, err := cli.containerExecComplete(context.Background(), tc.expectedContainerID)
 			if err != nil {
 				if tc.expectedContainerRunCompleteErr != nil {
 					if diff := cmp.Diff(err.Error(), tc.expectedContainerRunCompleteErr.Error()); diff != "" {
@@ -244,19 +244,19 @@ func TestPullImage(t *testing.T) {
 		testErr          error
 	}{
 		"success": {
-			testString:       "{\"status\": \"hello\",\"error\":\"\"}{\"status\":\"world\",\"error\":\"\"}",
+			testString:       `{"status":"hello","error":""}{"status":"world","error":""}`,
 			testImagePullErr: nil,
 			testErr:          nil,
 		},
 		"fail": {
-			testString:       "{\"error\": \"\"}",
-			testImagePullErr: errors.New("Tested, failure of the image pull"),
-			testErr:          errors.New("error pulling image: something: Tested, failure of the image pull"),
+			testString:       `{"error": ""}`,
+			testImagePullErr: errors.New("tested, failure of the image pull"),
+			testErr:          errors.New("error pulling image: something: tested, failure of the image pull"),
 		},
 		"fail_partial": {
-			testString:       "{\"status\": \"hello\",\"error\":\"\"}{\"status\":\"world\",\"error\":\"Tested, failure of No space left on device\"}",
+			testString:       `{"status": "hello","error":""}{"status":"world","error":"tested, failure of No space left on device"}`,
 			testImagePullErr: nil,
-			testErr:          errors.New("error pulling image: something: Tested, failure of No space left on device"),
+			testErr:          errors.New("error pulling image: something: tested, failure of No space left on device"),
 		},
 	}
 
@@ -269,8 +269,8 @@ func TestPullImage(t *testing.T) {
 			}
 			mClient := mockClient{mock: helper}
 			ctx := context.Background()
-			client := Client{Conn: &mClient}
-			err := client.pullImage(ctx, "something", types.ImagePullOptions{})
+			cli := Client{Conn: &mClient}
+			err := cli.pullImage(ctx, "something", types.ImagePullOptions{})
 			if err != nil {
 				if tc.testErr != nil {
 					if diff := cmp.Diff(err.Error(), tc.testErr.Error()); diff != "" {

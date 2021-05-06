@@ -60,7 +60,7 @@ func (c *Client) Prepare(ctx context.Context, imageName string) (id string, err 
 	}
 	// 2. create container
 	containerName := fmt.Sprintf("%v-%v", strings.ReplaceAll(c.action.Name, " ", "-"), time.Now().UnixNano())
-	id, err = c.createContainer(ctx, containerName, tink.ActionToDockerContainerConfig(ctx, c.action), tink.ActionToDockerHostConfig(ctx, c.action))
+	id, err = c.createContainer(ctx, containerName, tink.ToDockerConf(ctx, c.action), tink.ActionToDockerHostConfig(ctx, c.action))
 	if err != nil {
 		return "", err
 	}
