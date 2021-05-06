@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/jacobweinstock/tinklet/pkg/errs"
 	"github.com/jacobweinstock/tinklet/pkg/tink"
 	"github.com/pkg/errors"
 	"github.com/tinkerbell/tink/protos/hardware"
@@ -97,12 +98,12 @@ func controller(ctx context.Context, log logr.Logger, identifier string, runner 
 				log.V(0).Error(err, "unable to prepare environment")
 				break
 			}
-			for _, elem := range acts {
-				actionLog := log.WithValues("action", &elem)
+			for _, act := range acts {
+				actionLog := log.WithValues("action", &act)
 				_, reportErr := workflowClient.ReportActionStatus(ctx, &workflow.WorkflowActionStatus{
 					WorkflowId:   id.GetWorkflowId(),
-					TaskName:     elem.TaskName,
-					ActionName:   elem.Name,
+					TaskName:     act.TaskName,
+					ActionName:   act.Name,
 					ActionStatus: workflow.State_STATE_RUNNING,
 					Seconds:      0,
 					Message:      "starting execution",
@@ -117,7 +118,7 @@ func controller(ctx context.Context, log logr.Logger, identifier string, runner 
 
 				actionLog.V(0).Info("executing action")
 				start := time.Now()
-				err = actionFlow(ctx, runner, elem, elem.Image, id.WorkflowId)
+				err = actionFlow(ctx, runner, act, act.Image, id.WorkflowId)
 				elapsed := time.Since(start)
 				actStatus := workflow.State_STATE_SUCCESS
 				var actionFailed bool
@@ -125,7 +126,7 @@ func controller(ctx context.Context, log logr.Logger, identifier string, runner 
 					actionFailed = true
 					actionLog.V(0).Error(err, "action completed with an error")
 					switch errors.Cause(err).(type) {
-					case *TimeoutError:
+					case *errs.TimeoutError:
 						actStatus = workflow.State_STATE_TIMEOUT
 					default:
 						actStatus = workflow.State_STATE_FAILED
@@ -133,8 +134,8 @@ func controller(ctx context.Context, log logr.Logger, identifier string, runner 
 				}
 				_, reportErr = workflowClient.ReportActionStatus(ctx, &workflow.WorkflowActionStatus{
 					WorkflowId:   id.GetWorkflowId(),
-					TaskName:     elem.TaskName,
-					ActionName:   elem.Name,
+					TaskName:     act.TaskName,
+					ActionName:   act.Name,
 					ActionStatus: actStatus,
 					Seconds:      int64(elapsed.Seconds()),
 					Message:      "action complete",

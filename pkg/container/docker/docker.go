@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"github.com/jacobweinstock/tinklet/pkg/errs"
 	"github.com/jacobweinstock/tinklet/pkg/tink"
 	"github.com/pkg/errors"
 	"github.com/tinkerbell/tink/protos/workflow"
@@ -78,13 +79,13 @@ LOOP:
 	for {
 		select {
 		case <-timer.C:
-			return &TimeoutError{TimeoutValue: time.Duration(c.action.Timeout) * time.Second}
+			return &errs.TimeoutError{TimeoutValue: time.Duration(c.action.Timeout) * time.Second}
 		default:
 			var ok bool
 			var err error
 			ok, detail, err = c.containerExecComplete(ctx, id)
 			if err != nil {
-				return errors.Wrap(&ExecutionError{Msg: "waiting for container failed"}, err.Error())
+				return errors.Wrap(err, "waiting for container failed")
 			}
 			if ok {
 				break LOOP
@@ -167,25 +168,4 @@ func (c *Client) containerExecComplete(ctx context.Context, containerID string) 
 		return true, detail, nil
 	}
 	return false, types.ContainerJSON{}, nil
-}
-
-// TimeoutError time out errors
-type TimeoutError struct {
-	TimeoutValue time.Duration
-}
-
-func (t *TimeoutError) Error() string {
-	return fmt.Sprintf("timeout reached: %v", t.TimeoutValue)
-}
-
-// ExecutionError execution errors
-type ExecutionError struct {
-	Stdout   string
-	ExitCode int
-	Details  string
-	Msg      string
-}
-
-func (e *ExecutionError) Error() string {
-	return fmt.Sprintf("msg: %v; exit code: %v; details: %v; stdout: %v", e.Msg, e.ExitCode, e.Details, e.Stdout)
 }

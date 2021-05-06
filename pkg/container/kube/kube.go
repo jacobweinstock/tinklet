@@ -104,7 +104,7 @@ func (c *Client) CleanEnv(ctx context.Context) error {
 		defer func() { c.taskNamespace = "" }()
 		// no grace period; delete now
 		var gracePeriod int64 = 0
-		// delete all descendends in the foreground
+		// delete all descended in the foreground
 		policy := metav1.DeletePropagationForeground
 		return c.Conn.CoreV1().Namespaces().Delete(ctx, c.taskNamespace, metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod, PropagationPolicy: &policy})
 	}
@@ -141,7 +141,7 @@ func (c *Client) Prepare(ctx context.Context, imageName string) (id string, err 
 func (c *Client) Destroy(ctx context.Context) error {
 	// no grace period; delete now
 	var gracePeriod int64 = 0
-	// delete all descendends in the foreground
+	// delete all descended in the foreground
 	policy := metav1.DeletePropagationForeground
 	deleteOpts := metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod, PropagationPolicy: &policy}
 	var errs error
