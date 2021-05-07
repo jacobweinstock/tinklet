@@ -104,7 +104,7 @@ func (c *Client) CleanEnv(ctx context.Context) error {
 		// no grace period; delete now
 		var gracePeriod int64 = 0
 		// delete all descended in the foreground
-		//policy := metav1.DeletePropagationForeground
+		// policy := metav1.DeletePropagationForeground
 		return c.Conn.CoreV1().Namespaces().Delete(ctx, c.taskNamespace, metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod /*PropagationPolicy: &policy*/})
 	}
 	return nil
