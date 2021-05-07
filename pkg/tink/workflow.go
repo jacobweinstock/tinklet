@@ -36,7 +36,7 @@ func ToDockerConf(ctx context.Context, workflowAction *workflow.WorkflowAction, 
 }
 
 // ActionToDockerHostConfig converts a tink action spec to a container host config spec
-func ActionToDockerHostConfig(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...hostOpt) *container.HostConfig { // nolint
+func ActionToDockerHostConfig(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...hostOpt) *container.HostConfig {
 	defaultConfig := &container.HostConfig{
 		Binds:      workflowAction.Volumes,
 		PidMode:    container.PidMode(workflowAction.Pid),

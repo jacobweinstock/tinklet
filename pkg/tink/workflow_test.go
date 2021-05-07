@@ -263,7 +263,6 @@ func TestWorkflowContexts(t *testing.T) {
 		t.Fatal(err)
 	}
 	workerID := "0eba0bf8-3772-4b4a-ab9f-6ebe93b90a94"
-	// workerID = "b3fa8f4f-f8f9-4a11-bdcc-265465aa87b7"
 	ws := workflow.NewWorkflowServiceClient(conn)
 	c, err := ws.GetWorkflowContexts(context.Background(), &workflow.WorkflowContextRequest{
 		WorkerId: workerID,

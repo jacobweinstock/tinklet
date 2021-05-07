@@ -104,8 +104,8 @@ func (c *Client) CleanEnv(ctx context.Context) error {
 		// no grace period; delete now
 		var gracePeriod int64 = 0
 		// delete all descended in the foreground
-		policy := metav1.DeletePropagationForeground
-		return c.Conn.CoreV1().Namespaces().Delete(ctx, c.taskNamespace, metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod, PropagationPolicy: &policy})
+		//policy := metav1.DeletePropagationForeground
+		return c.Conn.CoreV1().Namespaces().Delete(ctx, c.taskNamespace, metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod /*PropagationPolicy: &policy*/})
 	}
 	return nil
 }
@@ -116,7 +116,7 @@ func (c *Client) Prepare(ctx context.Context, imageName string) (id string, err 
 		regAuth := getRegistryAuth(c.RegistryAuth, imageName)
 		if regAuth != "" {
 			name := "regcred"
-			if _, err := c.Conn.CoreV1().Secrets(c.taskNamespace).Create(ctx, toDockerConfigSecret(name, regAuth), metav1.CreateOptions{}); err != nil {
+			if _, err = c.Conn.CoreV1().Secrets(c.taskNamespace).Create(ctx, toDockerConfigSecret(name, regAuth), metav1.CreateOptions{}); err != nil {
 				return "", err
 			}
 			c.taskPullSecret = name
@@ -124,8 +124,8 @@ func (c *Client) Prepare(ctx context.Context, imageName string) (id string, err 
 	}
 	// 3. create regular secrets
 	// 4. create job without starting it (https://cloud.google.com/kubernetes-engine/docs/how-to/jobs#managing_parallelism)
-	labels := map[string]string{}
-	job, err := c.createJob(ctx, c.taskNamespace, strings.ReplaceAll(c.action.Name, " ", "-"), c.action.Image, c.action.Command, labels, c.taskPullSecret, false)
+	labels := make(map[string]string)
+	job, err := c.createJob(ctx, c.taskNamespace, strings.ReplaceAll(strings.ReplaceAll(c.action.Name, " ", "-"), "_", "-"), c.action.Image, c.action.Command, labels, c.taskPullSecret, false)
 	if err != nil {
 		return "", err
 	}
@@ -172,21 +172,23 @@ func (c *Client) Run(ctx context.Context, id string) error {
 		}
 	}
 
-	// 2. wait for job/pod completion
+	const timeout int = 5
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Minute)
+	defer cancel()
+
+	// 2. wait for job via its pod completion, with timeout
 	return c.waitFor(ctx, func(e watch.Event) (bool, error) {
-		switch t := e.Type; t {
+		switch e.Type { // nolint
 		case watch.Added, watch.Modified:
 			pod, ok := e.Object.(*v1.Pod)
 			if !ok {
 				return false, nil
 			}
-			for _, cs := range pod.Status.ContainerStatuses {
-				if cs.State.Terminated != nil {
+			for index := range pod.Status.ContainerStatuses {
+				if pod.Status.ContainerStatuses[index].State.Terminated != nil {
 					return true, nil
 				}
 			}
-		case watch.Error:
-			return false, errors.New("need to get the watch error here")
 		}
 		return false, nil
 	})

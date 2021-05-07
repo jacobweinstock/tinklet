@@ -48,7 +48,10 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 	workflowClient := workflow.NewWorkflowServiceClient(c.grpcClient)
 	// setup the hardware rpc service client - enables us to get the workerID (which is the hardware data ID)
 	hardwareClient := hardware.NewHardwareServiceClient(c.grpcClient)
-	app.RunController(ctx, c.rootConfig.Log, c.rootConfig.ID, workflowClient, hardwareClient, &docker.Client{Conn: c.dockerClient, RegistryAuth: c.rootConfig.RegistryAuth})
+	d := &docker.Client{Conn: c.dockerClient, RegistryAuth: c.rootConfig.RegistryAuth}
+	control := app.Controller{WorkflowClient: workflowClient, HardwareClient: hardwareClient, Backend: d}
+	// Start blocks until the ctx is canceled
+	control.Start(ctx, c.rootConfig.Log, c.rootConfig.ID)
 	return nil
 }
 

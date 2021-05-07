@@ -11,6 +11,7 @@ import (
 	"github.com/jacobweinstock/tinklet/cmd/root"
 	"github.com/jacobweinstock/tinklet/pkg/container/kube"
 	"github.com/jacobweinstock/tinklet/pkg/grpcopts"
+	"github.com/peterbourgon/ff/v3"
 	"github.com/peterbourgon/ff/v3/ffcli"
 	"github.com/pkg/errors"
 	"github.com/tinkerbell/tink/protos/hardware"
@@ -44,6 +45,7 @@ func New(rootConfig *root.Config) *ffcli.Command {
 		ShortUsage: "tinklet kube",
 		ShortHelp:  "run the tinklet using the kubernetes backend.",
 		FlagSet:    fs,
+		Options:    []ff.Option{ff.WithIgnoreUndefined(false)},
 		Exec:       cfg.Exec,
 	}
 }
@@ -60,7 +62,8 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 	// setup the hardware rpc service client - enables us to get the workerID (which is the hardware data ID)
 	hardwareClient := hardware.NewHardwareServiceClient(c.grpcClient)
 	k := &kube.Client{Conn: c.kubeClient, RegistryAuth: c.rootConfig.RegistryAuth}
-	app.RunController(ctx, c.rootConfig.Log, c.rootConfig.ID, workflowClient, hardwareClient, k)
+	control := app.Controller{WorkflowClient: workflowClient, HardwareClient: hardwareClient, Backend: k}
+	control.Start(ctx, c.rootConfig.Log, c.rootConfig.ID)
 	return nil
 }
 

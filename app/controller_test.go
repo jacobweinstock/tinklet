@@ -56,7 +56,12 @@ func TestRunController(t *testing.T) {
 	}
 	capturedOut := captureOutput(func() {
 		ctx, cancel := context.WithCancel(context.Background())
-		go RunController(ctx, defaultLogger(), "12345", workflowClient, hardwareClient, &runnerMock{})
+		control := Controller{
+			WorkflowClient: workflowClient,
+			HardwareClient: hardwareClient,
+			Backend:        &runnerMock{},
+		}
+		go control.Start(ctx, defaultLogger(), "12345")
 		cancel()
 		time.Sleep(time.Second)
 	})

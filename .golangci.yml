@@ -89,7 +89,7 @@ linters:
     - gosimple
     - govet
     - ineffassign
-    - lll
+    #- lll
     - misspell
     - nakedret
     - noctx
@@ -106,7 +106,7 @@ linters:
     - whitespace
 
   # don't enable:
-  # - asciicheck
+    - asciicheck
   # - scopelint
   # - gochecknoglobals
   # - gocognit
@@ -130,7 +130,4 @@ issues:
 
 run:
   skip-dirs:
-    - test/testdata_etc
-    - internal/cache
-    - internal/renameio
-    - internal/robustio
+    - test/

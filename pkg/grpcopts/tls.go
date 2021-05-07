@@ -56,7 +56,7 @@ func LoadTLSFromValue(tlsVal string) (grpc.DialOption, error) {
 		var dialOpt grpc.DialOption
 		if secure {
 			// 1. the server has a cert from a well known CA - grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
-			dialOpt = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{}))
+			dialOpt = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12}))
 		} else {
 			// 2. the server is not using TLS - grpc.WithInsecure()
 			dialOpt = grpc.WithInsecure()
@@ -71,7 +71,7 @@ func LoadTLSFromValue(tlsVal string) (grpc.DialOption, error) {
 		return grpc.WithTransportCredentials(toCreds(data)), nil
 	case schemeHTTP, schemeHTTPS:
 		// 4. the server has a self-signed cert and the cert needs to be grabbed from a URL -
-		resp, err := http.Get(tlsVal)
+		resp, err := http.Get(tlsVal) // nolint
 		if err != nil {
 			return nil, err
 		}

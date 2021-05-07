@@ -55,8 +55,8 @@ func (c *Client) SetActionData(ctx context.Context, workflowID string, action *w
 
 func (c *Client) Prepare(ctx context.Context, imageName string) (id string, err error) {
 	// 1. Pull the image
-	if err := c.pullImage(ctx, imageName, types.ImagePullOptions{RegistryAuth: getRegistryAuth(c.RegistryAuth, imageName)}); err != nil {
-		return "", err
+	if pullErr := c.pullImage(ctx, imageName, types.ImagePullOptions{RegistryAuth: getRegistryAuth(c.RegistryAuth, imageName)}); pullErr != nil {
+		return "", pullErr
 	}
 	// 2. create container
 	containerName := fmt.Sprintf("%v-%v", strings.ReplaceAll(c.action.Name, " ", "-"), time.Now().UnixNano())
