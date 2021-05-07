@@ -56,6 +56,7 @@ func (a constrainedString) maxChars(max int) string {
 }
 
 func (c *Client) PrepareEnv(ctx context.Context, id string) error {
+	const maxChars int = 63
 	var multiErr error
 	// 1. create namespace; once per task
 	// check if we can create namespaces, if we can we run workflow tasks in ephemeral namespaces
@@ -63,16 +64,15 @@ func (c *Client) PrepareEnv(ctx context.Context, id string) error {
 	if c.taskNamespace == "" {
 		// kubernetes namespace max length is 63 characters
 		nmsp := constrainedString(fmt.Sprintf("tinklet-%v-%v", id, time.Now().UnixNano()))
-		ns := nmsp.maxChars(63)
+		ns := nmsp.maxChars(maxChars)
 		// check if the namespace exists
 		_, err := c.Conn.CoreV1().Namespaces().Get(ctx, ns, metav1.GetOptions{})
 		if err == nil {
 			c.taskNamespace = ns
 			c.taskNamespaceIsEphemeral = true
 			return nil
-		} else {
-			multiErr = multierror.Append(multiErr, err)
 		}
+		multiErr = multierror.Append(multiErr, err)
 		_, err = c.Conn.CoreV1().Namespaces().Create(ctx, &v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: ns,
@@ -82,9 +82,8 @@ func (c *Client) PrepareEnv(ctx context.Context, id string) error {
 			c.taskNamespace = ns
 			c.taskNamespaceIsEphemeral = true
 			return nil
-		} else {
-			multiErr = multierror.Append(multiErr, err)
 		}
+		multiErr = multierror.Append(multiErr, err)
 	}
 
 	// check if the tinklet namespace exists
@@ -105,10 +104,9 @@ func (c *Client) CleanEnv(ctx context.Context) error {
 		// no grace period; delete now
 		var gracePeriod int64 = 0
 		// delete all descended in the foreground
-		policy := metav1.DeletePropagationForeground
-		return c.Conn.CoreV1().Namespaces().Delete(ctx, c.taskNamespace, metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod, PropagationPolicy: &policy})
+		// policy := metav1.DeletePropagationForeground
+		return c.Conn.CoreV1().Namespaces().Delete(ctx, c.taskNamespace, metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod /*PropagationPolicy: &policy*/})
 	}
-
 	return nil
 }
 
@@ -118,7 +116,7 @@ func (c *Client) Prepare(ctx context.Context, imageName string) (id string, err 
 		regAuth := getRegistryAuth(c.RegistryAuth, imageName)
 		if regAuth != "" {
 			name := "regcred"
-			if _, err := c.Conn.CoreV1().Secrets(c.taskNamespace).Create(ctx, toDockerConfigSecret(name, regAuth), metav1.CreateOptions{}); err != nil {
+			if _, err = c.Conn.CoreV1().Secrets(c.taskNamespace).Create(ctx, toDockerConfigSecret(name, regAuth), metav1.CreateOptions{}); err != nil {
 				return "", err
 			}
 			c.taskPullSecret = name
@@ -126,8 +124,8 @@ func (c *Client) Prepare(ctx context.Context, imageName string) (id string, err 
 	}
 	// 3. create regular secrets
 	// 4. create job without starting it (https://cloud.google.com/kubernetes-engine/docs/how-to/jobs#managing_parallelism)
-	labels := map[string]string{}
-	job, err := c.createJob(ctx, c.taskNamespace, strings.ReplaceAll(c.action.Name, " ", "-"), c.action.Image, c.action.Command, labels, c.taskPullSecret, false)
+	labels := make(map[string]string)
+	job, err := c.createJob(ctx, c.taskNamespace, strings.ReplaceAll(strings.ReplaceAll(c.action.Name, " ", "-"), "_", "-"), c.action.Image, c.action.Command, labels, c.taskPullSecret, false)
 	if err != nil {
 		return "", err
 	}
@@ -174,23 +172,26 @@ func (c *Client) Run(ctx context.Context, id string) error {
 		}
 	}
 
-	// 2. wait for job/pod completion
+	const timeout int = 5
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Minute)
+	defer cancel()
+
+	// 2. wait for job via its pod completion, with timeout
 	return c.waitFor(ctx, func(e watch.Event) (bool, error) {
-		switch t := e.Type; t {
+		switch e.Type { // nolint
 		case watch.Added, watch.Modified:
 			pod, ok := e.Object.(*v1.Pod)
 			if !ok {
 				return false, nil
 			}
-			for _, cs := range pod.Status.ContainerStatuses {
-				if cs.State.Terminated != nil {
+			for index := range pod.Status.ContainerStatuses {
+				if pod.Status.ContainerStatuses[index].State.Terminated != nil {
 					return true, nil
 				}
 			}
 		}
 		return false, nil
 	})
-
 }
 
 func (c *Client) waitFor(ctx context.Context, conditionFunc watchtools.ConditionFunc) error {
@@ -236,7 +237,7 @@ func (c *Client) createImagePullSecret(ctx context.Context, namespace string, se
 */
 
 // createJob creates a kubernetes job
-func (c *Client) createJob(ctx context.Context, namespace string, jobName string, image string, cmd []string, labels map[string]string, imagePullSecretName string, startImmediately bool) (*batchv1.Job, error) {
+func (c *Client) createJob(ctx context.Context, namespace, jobName, image string, cmd []string, labels map[string]string, imagePullSecretName string, startImmediately bool) (*batchv1.Job, error) {
 	var parallelism *int32
 	if startImmediately {
 		var n int32 = 1

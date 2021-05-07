@@ -50,10 +50,6 @@ type Registry struct {
 	Name string
 	User string
 	Pass string
-	// Secure is set to false if the registry is part of the list of
-	// insecure registries. Insecure registries accept HTTP and/or accept
-	// HTTPS with certificates from unknown CAs.
-	//Secure bool
 }
 
 func New() (*ffcli.Command, *Config) {
@@ -75,7 +71,6 @@ func New() (*ffcli.Command, *Config) {
 		},
 		Exec: cfg.Exec,
 	}, &cfg
-
 }
 
 func (c *Config) RegisterFlags(fs *flag.FlagSet) {
@@ -83,7 +78,8 @@ func (c *Config) RegisterFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.Config, "config", "tinklet.yaml", "config file (optional)")
 	fs.StringVar(&c.ID, "id", "", "worker id (required)")
 	fs.StringVar(&c.Tink, "tink", "", "tink server URL (required)")
-	fs.StringVar(&c.TLS, "tls", "false", "tink server TLS (file:///path/to/cert/tink.cert, http://tink-server:42114/cert, boolean (false - no TLS, true - tink has a cert from known CA) (optional)")
+	description := "(file:///path/to/cert/tink.cert, http://tink-server:42114/cert, boolean (false - no TLS, true - tink has a cert from known CA) (optional)"
+	fs.StringVar(&c.TLS, "tls", "false", "tink server TLS "+description)
 	fs.Var(&c.Registry, "registry", "container image registry (optional)")
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/jacobweinstock/tinklet/cmd/root"
 	"github.com/jacobweinstock/tinklet/pkg/container/kube"
 	"github.com/jacobweinstock/tinklet/pkg/grpcopts"
+	"github.com/peterbourgon/ff/v3"
 	"github.com/peterbourgon/ff/v3/ffcli"
 	"github.com/pkg/errors"
 	"github.com/tinkerbell/tink/protos/hardware"
@@ -44,6 +45,7 @@ func New(rootConfig *root.Config) *ffcli.Command {
 		ShortUsage: "tinklet kube",
 		ShortHelp:  "run the tinklet using the kubernetes backend.",
 		FlagSet:    fs,
+		Options:    []ff.Option{ff.WithIgnoreUndefined(false)},
 		Exec:       cfg.Exec,
 	}
 }
@@ -59,7 +61,9 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 	workflowClient := workflow.NewWorkflowServiceClient(c.grpcClient)
 	// setup the hardware rpc service client - enables us to get the workerID (which is the hardware data ID)
 	hardwareClient := hardware.NewHardwareServiceClient(c.grpcClient)
-	app.RunController(ctx, c.rootConfig.Log, c.rootConfig.ID, workflowClient, hardwareClient, &kube.Client{Conn: c.kubeClient, RegistryAuth: c.rootConfig.RegistryAuth})
+	k := &kube.Client{Conn: c.kubeClient, RegistryAuth: c.rootConfig.RegistryAuth}
+	control := app.Controller{WorkflowClient: workflowClient, HardwareClient: hardwareClient, Backend: k}
+	control.Start(ctx, c.rootConfig.Log, c.rootConfig.ID)
 	return nil
 }
 
@@ -67,6 +71,7 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 // it keep trying so that if the problem is temporary or can be resolved the
 // tinklet doesn't stop and need to be restarted by an outside process or person.
 func (c *Config) setupClients(ctx context.Context) {
+	const waitTime int = 3
 	for {
 		select {
 		case <-ctx.Done():
@@ -78,7 +83,7 @@ func (c *Config) setupClients(ctx context.Context) {
 		c.kubeClient, err = k8sLoadConfig(c.KubeConfig)
 		if err != nil {
 			c.rootConfig.Log.V(0).Error(err, "error creating kubernetes client")
-			time.Sleep(time.Second * 3)
+			time.Sleep(time.Duration(waitTime) * time.Second)
 			continue
 		}
 
@@ -87,14 +92,14 @@ func (c *Config) setupClients(ctx context.Context) {
 			dialOpt, err := grpcopts.LoadTLSFromValue(c.rootConfig.TLS)
 			if err != nil {
 				c.rootConfig.Log.V(0).Error(err, "error creating gRPC client TLS dial option")
-				time.Sleep(time.Second * 3)
+				time.Sleep(time.Duration(waitTime) * time.Second)
 				continue
 			}
 
 			c.grpcClient, err = grpc.DialContext(ctx, c.rootConfig.Tink, dialOpt)
 			if err != nil {
 				c.rootConfig.Log.V(0).Error(err, "error connecting to tink server")
-				time.Sleep(time.Second * 3)
+				time.Sleep(time.Duration(waitTime) * time.Second)
 				continue
 			}
 		}

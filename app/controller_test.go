@@ -52,18 +52,21 @@ func TestRunController(t *testing.T) {
 	want := []string{
 		`{"level":"info","msg":"workflow action controller started"}`,
 		`{"level":"info","msg":"stopping controller"}`,
-		`{"level":"info","msg":"tinklet stopped, good bye"}`,
 	}
 	capturedOut := captureOutput(func() {
 		ctx, cancel := context.WithCancel(context.Background())
-		go RunController(ctx, defaultLogger(), "12345", workflowClient, hardwareClient, &runnerMock{})
+		control := Controller{
+			WorkflowClient: workflowClient,
+			HardwareClient: hardwareClient,
+			Backend:        &runnerMock{},
+		}
+		go control.Start(ctx, defaultLogger(), "12345")
 		cancel()
 		time.Sleep(time.Second)
 	})
 	if diff := cmp.Diff(want, capturedOut); diff != "" {
 		t.Errorf(diff)
 	}
-
 }
 
 type runnerMock struct {
@@ -179,7 +182,7 @@ func (m *mocker) getMockedWorkflowServiceClient() *workflow.WorkflowServiceClien
 		}
 		if m.failGetWorkflowActions {
 			resp = nil
-			err = errors.New("ah bad!")
+			err = errors.New("ah bad")
 		}
 		return resp, err
 	}

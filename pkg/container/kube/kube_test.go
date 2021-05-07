@@ -47,14 +47,14 @@ func TestCreateJob(t *testing.T) {
 			},
 			Status: batchv1.JobStatus{},
 		}},
-		"failure": {clientset: fake.NewSimpleClientset(), expectedErr: errors.New("failed to create K8s job: Error creating job")},
+		"failure": {clientset: fake.NewSimpleClientset(), expectedErr: errors.New("failed to create K8s job: error creating job")},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			if tc.expectedErr != nil {
 				tc.clientset.PrependReactor("create", "jobs", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-					return true, &batchv1.Job{}, errors.New("Error creating job")
+					return true, &batchv1.Job{}, errors.New("error creating job")
 				})
 			}
 			client := Client{Conn: tc.clientset}

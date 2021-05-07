@@ -18,7 +18,7 @@ import (
 func GetHardwareID(ctx context.Context, client hardware.HardwareServiceClient, identifier string) (string, error) {
 	var err error
 	var hw *hardware.Hardware
-	ctx, cancel := context.WithTimeout(ctx, time.Second*60)
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
 	switch {

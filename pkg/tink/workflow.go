@@ -11,17 +11,16 @@ import (
 	"github.com/tinkerbell/tink/protos/workflow"
 )
 
-//type workflowsFilterByFunc = func(workflow.WorkflowServiceClient, []*workflow.Workflow) []*workflow.Workflow
-type actionsFilterByFunc = func([]*workflow.WorkflowAction) []*workflow.WorkflowAction
+type actFilterByFunc = func([]*workflow.WorkflowAction) []*workflow.WorkflowAction
 
-// containerConfigOption allows modifying the container config defaults
-type containerConfigOption func(*container.Config)
+// configOpt allows modifying the container config defaults
+type configOpt func(*container.Config)
 
-// containerHostOption allows modifying the container host config defaults
-type containerHostOption func(*container.HostConfig)
+// hostOpt allows modifying the container host config defaults
+type hostOpt func(*container.HostConfig)
 
-// ActionToDockerContainerConfig takes a workflowAction and translates it to a docker container config
-func ActionToDockerContainerConfig(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...containerConfigOption) *container.Config { // nolint
+// ToDockerConf takes a workflowAction and translates it to a docker container config
+func ToDockerConf(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...configOpt) *container.Config {
 	defaultConfig := &container.Config{
 		AttachStdout: true,
 		AttachStderr: true,
@@ -37,7 +36,7 @@ func ActionToDockerContainerConfig(ctx context.Context, workflowAction *workflow
 }
 
 // ActionToDockerHostConfig converts a tink action spec to a container host config spec
-func ActionToDockerHostConfig(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...containerHostOption) *container.HostConfig { // nolint
+func ActionToDockerHostConfig(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...hostOpt) *container.HostConfig {
 	defaultConfig := &container.HostConfig{
 		Binds:      workflowAction.Volumes,
 		PidMode:    container.PidMode(workflowAction.Pid),
@@ -52,7 +51,7 @@ func ActionToDockerHostConfig(ctx context.Context, workflowAction *workflow.Work
 // GetWorkflowContexts returns a slice of workflow contexts (a context is whether there is a workflow task assigned to this workerID)
 // if the returned slice is not empty then there is something to be executed by this workerID
 func GetWorkflowContexts(ctx context.Context, workerID string, client workflow.WorkflowServiceClient) ([]*workflow.WorkflowContext, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*60)
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	contexts, err := client.GetWorkflowContexts(ctx, &workflow.WorkflowContextRequest{WorkerId: workerID})
 	if err != nil {
@@ -79,8 +78,8 @@ func GetWorkflowContexts(ctx context.Context, workerID string, client workflow.W
 }
 
 // GetActionsList will get all workflows actions for a given workflowID. It will optionally, filter the workflow actions based on any filterByFunc passed in
-func GetActionsList(ctx context.Context, workflowID string, workflowClient workflow.WorkflowServiceClient, filterByFunc ...actionsFilterByFunc) (actions []*workflow.WorkflowAction, err error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*60)
+func GetActionsList(ctx context.Context, workflowID string, workflowClient workflow.WorkflowServiceClient, filterByFunc ...actFilterByFunc) (actions []*workflow.WorkflowAction, err error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	resp, err := workflowClient.GetWorkflowActions(ctx, &workflow.WorkflowActionsRequest{WorkflowId: workflowID})
 	if err != nil {
@@ -99,7 +98,7 @@ func GetActionsList(ctx context.Context, workflowID string, workflowClient workf
 }
 
 // FilterActionsByWorkerID will return only workflows whose hardware devices contains the given mac
-func FilterActionsByWorkerID(id string) actionsFilterByFunc {
+func FilterActionsByWorkerID(id string) actFilterByFunc {
 	return func(actions []*workflow.WorkflowAction) []*workflow.WorkflowAction {
 		var filteredActions []*workflow.WorkflowAction
 		for _, elem := range actions {

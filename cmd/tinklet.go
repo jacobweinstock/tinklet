@@ -31,26 +31,28 @@ func Execute(ctx context.Context) error {
 		dockerCommand,
 		kubeCommand,
 	}
-
 	if err := rootCommand.Parse(os.Args[1:]); err != nil {
 		return err
 	}
-
 	if err := validator.New().Struct(rootConfig); err != nil {
 		return err
 	}
 	rootConfig.Log = defaultLogger(rootConfig.LogLevel)
 	// create a base64 encoded auth string per user defined repo
+	regAuth := make(map[string]string)
 	for _, elem := range rootConfig.Registry {
-		rootConfig.RegistryAuth[elem.Name] = encodeRegistryAuth(types.AuthConfig{
+		v := encodeRegistryAuth(&types.AuthConfig{
 			Username: elem.User,
 			Password: elem.Pass,
 		})
+		regAuth[elem.Name] = v
 	}
-
+	rootConfig.RegistryAuth = regAuth
+	rootConfig.Log.V(0).Info("tinklet starting")
 	if err := rootCommand.Run(ctx); err != nil {
 		return err
 	}
+	rootConfig.Log.V(0).Info("tinklet stopped")
 	return nil
 }
 
@@ -72,7 +74,7 @@ func defaultLogger(level string) logr.Logger {
 	return zapr.NewLogger(zapLogger)
 }
 
-func encodeRegistryAuth(v types.AuthConfig) string {
+func encodeRegistryAuth(v *types.AuthConfig) string {
 	encodedAuth, err := json.Marshal(v)
 	if err != nil {
 		return ""
