@@ -17,3 +17,4 @@ bin/
 config.json
 tink.cert
 tls/
+dist/
