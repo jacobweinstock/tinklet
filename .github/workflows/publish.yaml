@@ -1,4 +1,4 @@
-name: Publish Docker image
+name: Publish Release
 on:
   push:
     tags:
@@ -19,6 +19,6 @@ jobs:
         uses: goreleaser/goreleaser-action@v2
         with:
           version: latest
-          args: release --rm-dist
+          args: release --rm-dist --parallelism 1
         env:
           GITHUB_TOKEN: ${{ secrets.GHCR_TOKEN }}
