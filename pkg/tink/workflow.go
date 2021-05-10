@@ -51,8 +51,6 @@ func ActionToDockerHostConfig(ctx context.Context, workflowAction *workflow.Work
 // GetWorkflowContexts returns a slice of workflow contexts (a context is whether there is a workflow task assigned to this workerID)
 // if the returned slice is not empty then there is something to be executed by this workerID
 func GetWorkflowContexts(ctx context.Context, workerID string, client workflow.WorkflowServiceClient) ([]*workflow.WorkflowContext, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
-	defer cancel()
 	contexts, err := client.GetWorkflowContexts(ctx, &workflow.WorkflowContextRequest{WorkerId: workerID})
 	if err != nil {
 		return nil, errors.WithMessage(err, "error getting workflow contexts")
@@ -60,11 +58,17 @@ func GetWorkflowContexts(ctx context.Context, workerID string, client workflow.W
 
 	var wks []*workflow.WorkflowContext
 	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
 		aWorkflow, recvErr := contexts.Recv()
 		if recvErr == io.EOF {
 			break
 		}
 		if recvErr != nil {
+			// TODO: do we need to catch all the errors?
 			err = multierror.Append(err, recvErr)
 			continue
 		}

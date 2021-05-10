@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -47,13 +48,46 @@ type ContainerRunner interface {
 	SetActionData(ctx context.Context, workflowID string, action *workflow.WorkflowAction)
 }
 
+func (c Controller) GetHardwareID(ctx context.Context, log logr.Logger, identifier string) string {
+	idChan := make(chan string, 1)
+	go func(idChn chan string) {
+		idChn <- c.doGetHardwareID(ctx, log, identifier)
+	}(idChan)
+
+	select {
+	case <-ctx.Done(): // graceful shutdown when a signal is caught
+		return ""
+	case id := <-idChan:
+		return id
+	}
+}
+
+func (c Controller) doGetHardwareID(ctx context.Context, log logr.Logger, identifier string) string {
+	var wait int = 3
+	waitTime := time.Duration(wait) * time.Second
+	for {
+		select {
+		case <-ctx.Done():
+			log.V(0).Info("stopped hardwareID control loop", "msg", ctx.Err())
+			return ""
+		default:
+			// get the worker_id from tink server, this is the hardware id
+			workerID, err := tink.GetHardwareID(ctx, c.HardwareClient, identifier)
+			if err != nil {
+				log.V(0).Info("unable to get worker ID from tink server", "id", identifier, "retry_interval", fmt.Sprintf("%v", waitTime))
+				time.Sleep(waitTime)
+				continue
+			}
+			return workerID
+		}
+	}
+}
+
 // Start the control loop and waits for a context cancel/done to return
 func (c Controller) Start(ctx context.Context, log logr.Logger, id string) {
 	var controllerWg sync.WaitGroup
 	controllerWg.Add(1)
 	go c.run(ctx, log, id, &controllerWg)
-	log.V(0).Info("workflow action controller started")
-
 	// graceful shutdown when a signal is caught
 	<-ctx.Done()
 	controllerWg.Wait()
@@ -64,36 +98,28 @@ func (c Controller) Start(ctx context.Context, log logr.Logger, id string) {
 // 1a. if yes - get workflow tasks based on workflowID and workerID
 // 1b. if no - ask again later
 // TODO: assume action executions are idempotent, meaning keep trying them until they they succeed
-// TODO; make action executions declarative, meaning we can determine current status and desired state. allows retrying executions
-func (c Controller) run(ctx context.Context, log logr.Logger, identifier string, stopControllerWg *sync.WaitGroup) {
-	const waitTime int = 3
-	initialLog := log
+// TODO: make action executions declarative, meaning we can determine current status and desired state. allows retrying executions.
+// This might require the workflow spec to be updated. It currently leans heavily toward the imperative side, we'd want to rethink
+// and have it favor a more declarative feel, describing desired state. Is that even possible?
+func (c Controller) run(ctx context.Context, log logr.Logger, workerID string, stopControllerWg *sync.WaitGroup) {
+	initialLog := log.WithValues("workerID", workerID)
 	for {
-		log := initialLog
+		logger := initialLog
 		select {
 		case <-ctx.Done():
-			log.V(0).Info("stopping controller")
+			logger.V(0).Info("stopping controller")
 			stopControllerWg.Done()
 			return
 		default:
-			time.Sleep(time.Duration(waitTime) * time.Second)
-
-			// get the worker_id from tink server, this is the hardware id
-			workerID, err := tink.GetHardwareID(ctx, c.HardwareClient, identifier)
-			if err != nil {
-				log.V(0).Error(err, "error getting workerID from tink server", "id", identifier)
-				continue
-			}
-			log = log.WithValues("workerID", workerID)
-
 			// 1. is there a workflow task to execute?
+			// this is a blocking call, it waits until a workflow is received
 			workflowIDs, err := tink.GetWorkflowContexts(ctx, workerID, c.WorkflowClient)
 			if err != nil {
 				// 1b. err then try again later, ie. continue loop
-				log.V(0).Info("no actions to execute")
+				logger.V(0).Info("no actions to execute", "msg", err.Error())
 				continue
 			}
-			c.execWorkflows(ctx, log, workflowIDs, workerID)
+			c.execWorkflows(ctx, logger, workflowIDs, workerID)
 		}
 	}
 }

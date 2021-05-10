@@ -63,6 +63,12 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 	hardwareClient := hardware.NewHardwareServiceClient(c.grpcClient)
 	k := &kube.Client{Conn: c.kubeClient, RegistryAuth: c.rootConfig.RegistryAuth}
 	control := app.Controller{WorkflowClient: workflowClient, HardwareClient: hardwareClient, Backend: k}
+	// get the hardware ID (aka worker ID) from tink
+	c.rootConfig.Log.V(0).Info("acquiring worker ID from tink server")
+	hardwareID := control.GetHardwareID(ctx, c.rootConfig.Log, c.rootConfig.ID)
+	c.rootConfig.Log.V(0).Info("worker ID acquired", "id", hardwareID)
+	c.rootConfig.Log.V(0).Info("workflow action controller started")
+	// Start blocks until the ctx is canceled
 	control.Start(ctx, c.rootConfig.Log, c.rootConfig.ID)
 	return nil
 }

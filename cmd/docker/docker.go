@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"flag"
+	"fmt"
 	"time"
 
 	"github.com/docker/docker/client"
@@ -50,8 +51,13 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 	hardwareClient := hardware.NewHardwareServiceClient(c.grpcClient)
 	d := &docker.Client{Conn: c.dockerClient, RegistryAuth: c.rootConfig.RegistryAuth}
 	control := app.Controller{WorkflowClient: workflowClient, HardwareClient: hardwareClient, Backend: d}
+	// get the hardware ID (aka worker ID) from tink
+	c.rootConfig.Log.V(0).Info("acquiring worker ID from tink server", "identifier", c.rootConfig.ID)
+	hardwareID := control.GetHardwareID(ctx, c.rootConfig.Log, c.rootConfig.ID)
+	c.rootConfig.Log.V(0).Info("worker ID acquired", "id", hardwareID)
+	c.rootConfig.Log.V(0).Info("workflow action controller started")
 	// Start blocks until the ctx is canceled
-	control.Start(ctx, c.rootConfig.Log, c.rootConfig.ID)
+	control.Start(ctx, c.rootConfig.Log, hardwareID)
 	return nil
 }
 
@@ -59,7 +65,9 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 // it keeps trying so that if the problem is temporary or can be resolved the
 // tinklet doesn't stop and need to be restarted by an outside process or person.
 func (c *Config) setupClients(ctx context.Context) {
-	const waitTime int = 3
+	const wait int = 3
+	waitTime := time.Duration(wait) * time.Second
+	log := c.rootConfig.Log.WithValues("retry_interval", fmt.Sprintf("%v", waitTime))
 	for {
 		select {
 		case <-ctx.Done():
@@ -71,8 +79,8 @@ func (c *Config) setupClients(ctx context.Context) {
 		if c.dockerClient == nil {
 			c.dockerClient, err = client.NewClientWithOpts()
 			if err != nil {
-				c.rootConfig.Log.V(0).Error(err, "error creating docker client")
-				time.Sleep(time.Duration(waitTime) * time.Second)
+				log.V(0).Info("unable to create docker client", "msg", err.Error())
+				time.Sleep(waitTime)
 				continue
 			}
 		}
@@ -81,15 +89,15 @@ func (c *Config) setupClients(ctx context.Context) {
 		if c.grpcClient == nil {
 			dialOpt, err := grpcopts.LoadTLSFromValue(c.rootConfig.TLS)
 			if err != nil {
-				c.rootConfig.Log.V(0).Error(err, "error creating gRPC client TLS dial option")
-				time.Sleep(time.Duration(waitTime) * time.Second)
+				log.V(0).Info("unable to create gRPC client TLS dial option", "msg", err.Error())
+				time.Sleep(waitTime)
 				continue
 			}
 
 			c.grpcClient, err = grpc.DialContext(ctx, c.rootConfig.Tink, dialOpt)
 			if err != nil {
-				c.rootConfig.Log.V(0).Error(err, "error connecting to tink server")
-				time.Sleep(time.Duration(waitTime) * time.Second)
+				log.V(0).Info("error connecting to tink server", "msg", err.Error())
+				time.Sleep(waitTime)
 				continue
 			}
 		}

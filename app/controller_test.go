@@ -51,7 +51,7 @@ func TestRunController(t *testing.T) {
 
 	want := []string{
 		`{"level":"info","msg":"workflow action controller started"}`,
-		`{"level":"info","msg":"stopping controller"}`,
+		`{"level":"info","msg":"stopping controller","workerID":"12345"}`,
 	}
 	capturedOut := captureOutput(func() {
 		ctx, cancel := context.WithCancel(context.Background())
