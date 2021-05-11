@@ -49,10 +49,7 @@ func TestRunController(t *testing.T) {
 	mockr := mocker{numWorkflowsToMock: 1, numContextsToMock: 1}
 	workflowClient := mockr.getMockedWorkflowServiceClient()
 
-	want := []string{
-		`{"level":"info","msg":"workflow action controller started"}`,
-		`{"level":"info","msg":"stopping controller","workerID":"12345"}`,
-	}
+	want := []string{`{"level":"info","msg":"stopping controller","workerID":"12345"}`}
 	capturedOut := captureOutput(func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		control := Controller{
