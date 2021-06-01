@@ -18,3 +18,4 @@ config.json
 tink.cert
 tls/
 dist/
+test.output

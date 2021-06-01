@@ -11,6 +11,7 @@ test: ## Run unit tests
 
 .PHONY: test-ci
 test-ci: ## Run unit tests for CI
+	go mod tidy
 	go test -coverprofile=cover.out ./... > test.output
 
 .PHONY: cover
