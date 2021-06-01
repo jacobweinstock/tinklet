@@ -74,7 +74,7 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 }
 
 // setupClients is a small control loop to create kube client and tink server client.
-// it keep trying so that if the problem is temporary or can be resolved the
+// it keeps trying so that if the problem is temporary or can be resolved the
 // tinklet doesn't stop and need to be restarted by an outside process or person.
 func (c *Config) setupClients(ctx context.Context) {
 	const wait int = 3
