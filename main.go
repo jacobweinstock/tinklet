@@ -16,22 +16,8 @@ func main() {
 		os.Exit(exitCode)
 	}()
 
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt, syscall.SIGHUP, syscall.SIGTERM)
-	ctx, cancel := context.WithCancel(context.Background())
-
-	defer func() {
-		signal.Stop(signals)
-		cancel()
-	}()
-
-	go func() {
-		select {
-		case <-signals:
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
+	ctx, done := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGHUP, syscall.SIGTERM)
+	defer done()
 
 	if err := cmd.Execute(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)
