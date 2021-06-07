@@ -8,11 +8,17 @@
 
 tinklet is an implementation of the [tinkerbell worker](https://docs.tinkerbell.org/services/tink-worker/).
 
+## Goals
+
+- support multiple container runtimes
+- define standard interfaces for preparing container environments and running actions
+- designed for ease of maintainance, testability, and extension
+
 ## Notable Features
 
+- support for multiple container runtimes [docker, kubernetes]
 - auth for multiple container registries
 - multiple client-side TLS options for communicating with Tink server
-- multiple backends [docker, kubernetes] for running workflow task actions
 
 ## Usage
 
@@ -34,6 +40,8 @@ FLAGS
 ```
 
 ## Design Philosophies
+
+Tinklet uses the design philosophies from [here](https://github.com/jacobweinstock/DesignPhilosophy) and well as the following:
 
 1. prefer easy to understand over easy to do
 2. `pkg` packages do not log only return errors
