@@ -14,14 +14,12 @@ Unfortunately, I felt that the tink-worker codebase was extremely fragile.
 Some of the factors I found that contribute to this fragility are:
 - Low unit test coverage 
 - Difficult to test functions
-- Lack of documentation
 - Scattered calls to `os.Exit` and `os.Getenv`
-- Tight coupling to docker
-- Difficult to modify tightly coupled functions and methods
-- Difficult to understand action execution flow
-- Difficult to understand tink interaction
-
-
+- Tight coupling to the container runtime (docker)
+- Difficult to modify or test tightly coupled functions and methods
+- The action execution flow is complex and difficult to understand
+- the tink server interactions are difficult to follow and understand
+- Lack of documentation, code comments even
 
 ## Goals
 
