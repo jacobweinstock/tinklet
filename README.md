@@ -8,6 +8,21 @@
 
 tinklet is an implementation of the [tinkerbell worker](https://docs.tinkerbell.org/services/tink-worker/).
 
+## Why not contribute to [tink-worker](https://docs.tinkerbell.org/services/tink-worker/)?
+
+Unfortunately, I felt that the tink-worker codebase was extremely fragile.
+Some of the factors I found that contribute to this fragility are:
+- Low unit test coverage 
+- Difficult to test functions
+- Lack of documentation
+- Scattered calls to `os.Exit` and `os.Getenv`
+- Tight coupling to docker
+- Difficult to modify tightly coupled functions and methods
+- Difficult to understand action execution flow
+- Difficult to understand tink interaction
+
+
+
 ## Goals
 
 - support multiple container runtimes
