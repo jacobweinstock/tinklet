@@ -10,7 +10,7 @@ tinklet is an implementation of the [tinkerbell worker](https://docs.tinkerbell.
 
 ## Why not contribute to [tink-worker](https://docs.tinkerbell.org/services/tink-worker/)?
 
-Unfortunately, I felt that the tink-worker codebase was extremely fragile.
+Unfortunately, I felt that the tink-worker codebase too fragile.
 Some of the factors I found that contribute to this fragility are:
 - Low unit test coverage 
 - Difficult to test functions
@@ -19,7 +19,7 @@ Some of the factors I found that contribute to this fragility are:
 - Difficult to modify or test tightly coupled functions and methods
 - The action execution flow is complex and difficult to understand
 - the tink server interactions are difficult to follow and understand
-- Lack of documentation, code comments even
+- Lack of documentation or code comments
 
 ## Goals
 
