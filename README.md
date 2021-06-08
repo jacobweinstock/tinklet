@@ -8,20 +8,6 @@
 
 tinklet is an implementation of the [tinkerbell worker](https://docs.tinkerbell.org/services/tink-worker/).
 
-## Why not contribute to [tink-worker](https://docs.tinkerbell.org/services/tink-worker/)?
-
-Unfortunately, I felt that the tink-worker codebase too fragile.
-Some of the factors I found that contribute to this fragility are:
-- Low unit test coverage 
-- Large, complex, and difficult to test functions 
-- Scattered calls to `os.Exit` and `os.Getenv`
-- Tight coupling to the container runtime (docker)
-- Difficult to modify or test tightly coupled functions and methods
-- The action execution flow code is complex and difficult to follow and understand
-- The Tink server interactions are difficult to follow and understand
-- The Tink workflow status reporting call result is coupled to the worker exit status
-- Lack of documentation or code comments
-
 ## Goals
 
 - support multiple container runtimes
@@ -64,3 +50,21 @@ Tinklet uses the design philosophies from [here](https://github.com/jacobweinsto
 5. less code, less bugs
 6. prefer explicit over implicit
 7. avoid global/package level variables as much as possible
+
+## Why not contribute to [tink-worker](https://docs.tinkerbell.org/services/tink-worker/)?
+
+I found that for tink-worker to accommodate some of my desired updates and changes it would need significant modification to its foundation.
+Unfortunately, I felt that the codebase was too fragile to make these changes.
+Understanding the execution flow of the codebase was also a significant barrier to overcome.
+
+The following are some of the factors I felt contribute to the fragility of tink-worker:
+
+- Low unit test coverage 
+- Large, complex, and difficult to test functions 
+- Scattered calls to `os.Exit` and `os.Getenv`
+- Tight coupling to the container runtime (docker)
+- Difficult to modify or test tightly coupled functions and methods
+- The action execution flow code is complex and difficult to follow and understand
+- The Tink server interactions are difficult to follow and understand
+- The Tink workflow status reporting call result is coupled to the worker exit status
+- Lack of documentation or code comments
