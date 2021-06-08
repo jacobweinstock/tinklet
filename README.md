@@ -13,12 +13,13 @@ tinklet is an implementation of the [tinkerbell worker](https://docs.tinkerbell.
 Unfortunately, I felt that the tink-worker codebase too fragile.
 Some of the factors I found that contribute to this fragility are:
 - Low unit test coverage 
-- Difficult to test functions
+- Large, complex, and difficult to test functions 
 - Scattered calls to `os.Exit` and `os.Getenv`
 - Tight coupling to the container runtime (docker)
 - Difficult to modify or test tightly coupled functions and methods
-- The action execution flow is complex and difficult to understand
-- the tink server interactions are difficult to follow and understand
+- The action execution flow code is complex and difficult to follow and understand
+- The Tink server interactions are difficult to follow and understand
+- The Tink workflow status reporting call result is coupled to the worker exit status
 - Lack of documentation or code comments
 
 ## Goals
