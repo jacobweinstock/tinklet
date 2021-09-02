@@ -67,4 +67,4 @@ The following are some of the factors I felt contribute to the fragility of tink
 - The action execution flow code is complex and difficult to follow and understand
 - The Tink server interactions are difficult to follow and understand
 - The Tink workflow status reporting call result is coupled to the worker exit status
-- Lack of documentation or code comments
+- Lack of documentation and code comments
