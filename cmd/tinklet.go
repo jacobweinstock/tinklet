@@ -19,7 +19,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// Execute sets up the config and logging, then run the tinklet control loop
+// Execute sets up the config and logging, then run the tinklet control loop.
 func Execute(ctx context.Context) error {
 	var (
 		rootCommand, rootConfig = root.New()
@@ -56,7 +56,7 @@ func Execute(ctx context.Context) error {
 	return nil
 }
 
-// defaultLogger is zap logr implementation
+// defaultLogger is zap logr implementation.
 func defaultLogger(level string) logr.Logger {
 	config := zap.NewProductionConfig()
 	config.OutputPaths = []string{"stdout"}

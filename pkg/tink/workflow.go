@@ -13,14 +13,14 @@ import (
 
 type actFilterByFunc = func([]*workflow.WorkflowAction) []*workflow.WorkflowAction
 
-// configOpt allows modifying the container config defaults
+// configOpt allows modifying the container config defaults.
 type configOpt func(*container.Config)
 
-// hostOpt allows modifying the container host config defaults
+// hostOpt allows modifying the container host config defaults.
 type hostOpt func(*container.HostConfig)
 
-// ToDockerConf takes a workflowAction and translates it to a docker container config
-func ToDockerConf(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...configOpt) *container.Config {
+// ToDockerConf takes a workflowAction and translates it to a docker container config.
+func ToDockerConf(_ context.Context, workflowAction *workflow.WorkflowAction, opts ...configOpt) *container.Config {
 	defaultConfig := &container.Config{
 		AttachStdout: true,
 		AttachStderr: true,
@@ -35,8 +35,8 @@ func ToDockerConf(ctx context.Context, workflowAction *workflow.WorkflowAction, 
 	return defaultConfig
 }
 
-// ActionToDockerHostConfig converts a tink action spec to a container host config spec
-func ActionToDockerHostConfig(ctx context.Context, workflowAction *workflow.WorkflowAction, opts ...hostOpt) *container.HostConfig {
+// ActionToDockerHostConfig converts a tink action spec to a container host config spec.
+func ActionToDockerHostConfig(_ context.Context, workflowAction *workflow.WorkflowAction, opts ...hostOpt) *container.HostConfig {
 	defaultConfig := &container.HostConfig{
 		Binds:      workflowAction.Volumes,
 		PidMode:    container.PidMode(workflowAction.Pid),
@@ -49,7 +49,7 @@ func ActionToDockerHostConfig(ctx context.Context, workflowAction *workflow.Work
 }
 
 // GetWorkflowContexts returns a slice of workflow contexts (a context is whether there is a workflow task assigned to this workerID)
-// if the returned slice is not empty then there is something to be executed by this workerID
+// if the returned slice is not empty then there is something to be executed by this workerID.
 func GetWorkflowContexts(ctx context.Context, workerID string, client workflow.WorkflowServiceClient) ([]*workflow.WorkflowContext, error) {
 	contexts, err := client.GetWorkflowContexts(ctx, &workflow.WorkflowContextRequest{WorkerId: workerID})
 	if err != nil {
@@ -64,7 +64,7 @@ func GetWorkflowContexts(ctx context.Context, workerID string, client workflow.W
 		default:
 		}
 		aWorkflow, recvErr := contexts.Recv()
-		if recvErr == io.EOF {
+		if errors.Is(recvErr, io.EOF) {
 			break
 		}
 		if recvErr != nil {
@@ -81,7 +81,7 @@ func GetWorkflowContexts(ctx context.Context, workerID string, client workflow.W
 	return wks, nil
 }
 
-// GetActionsList will get all workflows actions for a given workflowID. It will optionally, filter the workflow actions based on any filterByFunc passed in
+// GetActionsList will get all workflows actions for a given workflowID. It will optionally, filter the workflow actions based on any filterByFunc passed in.
 func GetActionsList(ctx context.Context, workflowID string, workflowClient workflow.WorkflowServiceClient, filterByFunc ...actFilterByFunc) (actions []*workflow.WorkflowAction, err error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
@@ -101,7 +101,7 @@ func GetActionsList(ctx context.Context, workflowID string, workflowClient workf
 	return acts, nil
 }
 
-// FilterActionsByWorkerID will return only workflows whose hardware devices contains the given mac
+// FilterActionsByWorkerID will return only workflows whose hardware devices contains the given mac.
 func FilterActionsByWorkerID(id string) actFilterByFunc {
 	return func(actions []*workflow.WorkflowAction) []*workflow.WorkflowAction {
 		var filteredActions []*workflow.WorkflowAction

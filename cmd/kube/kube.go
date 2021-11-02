@@ -55,7 +55,7 @@ func (c *Config) RegisterFlags(fs *flag.FlagSet) {
 }
 
 // Exec function for this command.
-func (c *Config) Exec(ctx context.Context, args []string) error {
+func (c *Config) Exec(ctx context.Context, _ []string) error {
 	c.setupClients(ctx)
 	// setup the workflow rpc service client - enables us to get workflows
 	workflowClient := workflow.NewWorkflowServiceClient(c.grpcClient)

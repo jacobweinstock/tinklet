@@ -45,7 +45,6 @@ func main() {
 		log.V(0).Error(err, "failed to update gist")
 		os.Exit(1)
 	}
-
 }
 
 func run(accessToken, gistID, filename, content string) error {
@@ -76,7 +75,7 @@ func run(accessToken, gistID, filename, content string) error {
 	return nil
 }
 
-// defaultLogger is zap logr implementation
+// defaultLogger is zap logr implementation.
 func defaultLogger(level string) logr.Logger {
 	config := zap.NewProductionConfig()
 	config.OutputPaths = []string{"stdout"}

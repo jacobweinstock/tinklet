@@ -41,10 +41,10 @@ type Config struct {
 	Log          logr.Logger
 }
 
-// needed for (*flag.FlagSet).Var
+// needed for (*flag.FlagSet).Var.
 type registries []Registry
 
-// Registry details for a container registry
+// Registry details for a container registry.
 type Registry struct {
 	// Name is the name of the registry, such as "docker.io"
 	Name string

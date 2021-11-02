@@ -56,23 +56,23 @@ type mockContainerStart struct {
 	startErr error
 }
 
-func (t *mockClient) ImagePull(ctx context.Context, ref string, options types.ImagePullOptions) (io.ReadCloser, error) {
+func (t *mockClient) ImagePull(_ context.Context, _ string, _ types.ImagePullOptions) (io.ReadCloser, error) {
 	return t.mock.stringReadCloser, t.mock.imagePullErr
 }
 
-func (t *mockClient) ContainerCreate(ctx context.Context, config *tainer.Config, hostConfig *tainer.HostConfig, networkingConfig *network.NetworkingConfig, platform *specs.Platform, containerName string) (tainer.ContainerCreateCreatedBody, error) {
+func (t *mockClient) ContainerCreate(_ context.Context, _ *tainer.Config, _ *tainer.HostConfig, _ *network.NetworkingConfig, _ *specs.Platform, _ string) (tainer.ContainerCreateCreatedBody, error) {
 	return tainer.ContainerCreateCreatedBody{ID: t.mock.createID, Warnings: t.mock.createWarnings}, t.mock.createErr
 }
 
-func (t *mockClient) ContainerInspect(ctx context.Context, container string) (types.ContainerJSON, error) {
+func (t *mockClient) ContainerInspect(_ context.Context, _ string) (types.ContainerJSON, error) {
 	return types.ContainerJSON{ContainerJSONBase: &types.ContainerJSONBase{ID: t.mock.inspectID, State: t.mock.inspectState}}, t.mock.inspectErr
 }
 
-func (t *mockClient) ContainerLogs(ctx context.Context, container string, options types.ContainerLogsOptions) (io.ReadCloser, error) {
+func (t *mockClient) ContainerLogs(_ context.Context, _ string, _ types.ContainerLogsOptions) (io.ReadCloser, error) {
 	return t.mock.logsReadCloser, t.mock.logsErr
 }
 
-func (t *mockClient) ContainerStart(ctx context.Context, container string, options types.ContainerStartOptions) error {
+func (t *mockClient) ContainerStart(_ context.Context, _ string, _ types.ContainerStartOptions) error {
 	return t.mock.startErr
 }
 
@@ -391,15 +391,16 @@ func TestClient_Prepare(t *testing.T) {
 			c := &Client{Conn: &mClient, action: &workflow.WorkflowAction{Name: "mything"}}
 			i, err := c.Prepare(context.Background(), "test")
 			if err != nil {
-				if tt.createErr != nil {
+				switch {
+				case tt.createErr != nil:
 					if diff := cmp.Diff(err.Error(), tt.createErr.Error()); diff != "" {
 						t.Fatal(diff)
 					}
-				} else if tt.pullErr != nil {
-					if diff := cmp.Diff(err.Error(), fmt.Errorf("error pulling image: test: %v", tt.pullErr.Error()).Error()); diff != "" {
+				case tt.pullErr != nil:
+					if diff := cmp.Diff(err.Error(), fmt.Errorf("error pulling image: test: %w", tt.pullErr).Error()); diff != "" {
 						t.Fatal(diff)
 					}
-				} else {
+				default:
 					t.Fatalf("error should be nil, got: %v", err)
 				}
 			}
@@ -437,15 +438,16 @@ func TestClient_Run(t *testing.T) {
 			c := &Client{Conn: &mClient, action: &workflow.WorkflowAction{Name: "mything", Timeout: 2}}
 			err := c.Run(context.Background(), "12345")
 			if err != nil {
-				if tt.startErr != nil {
+				switch {
+				case tt.startErr != nil:
 					if diff := cmp.Diff(err.Error(), tt.startErr.Error()); diff != "" {
 						t.Fatal(diff)
 					}
-				} else if tt.timeoutErr != nil {
+				case tt.timeoutErr != nil:
 					if diff := cmp.Diff(err.Error(), tt.timeoutErr.Error()); diff != "" {
 						t.Fatal(diff)
 					}
-				} else {
+				default:
 					t.Fatalf("error should be nil, got: %v", err)
 				}
 			}

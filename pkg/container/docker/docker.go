@@ -40,15 +40,15 @@ func getRegistryAuth(regAuth map[string]string, imageName string) string {
 	return ""
 }
 
-func (c *Client) PrepareEnv(ctx context.Context, id string) error {
+func (c *Client) PrepareEnv(_ context.Context, _ string) error {
 	return nil
 }
 
-func (c *Client) CleanEnv(ctx context.Context) error {
+func (c *Client) CleanEnv(_ context.Context) error {
 	return nil
 }
 
-func (c *Client) SetActionData(ctx context.Context, workflowID string, action *workflow.WorkflowAction) {
+func (c *Client) SetActionData(_ context.Context, workflowID string, action *workflow.WorkflowAction) {
 	c.action = action
 	c.workflowID = workflowID
 }
@@ -109,7 +109,7 @@ func (c *Client) Destroy(ctx context.Context) error {
 }
 
 // pullImage is what you would expect from a `docker pull` cli command
-// pulls an image from a remote registry
+// pulls an image from a remote registry.
 func (c *Client) pullImage(ctx context.Context, image string, pullOpts types.ImagePullOptions) error {
 	out, err := c.Conn.ImagePull(ctx, image, pullOpts)
 	if err != nil {
@@ -122,7 +122,7 @@ func (c *Client) pullImage(ctx context.Context, image string, pullOpts types.Ima
 	}
 	for {
 		if err := fd.Decode(&imagePullStatus); err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return errors.Wrapf(err, "error pulling image: %v", image)
@@ -134,7 +134,7 @@ func (c *Client) pullImage(ctx context.Context, image string, pullOpts types.Ima
 	return nil
 }
 
-// createContainer creates a container that is not started
+// createContainer creates a container that is not started.
 func (c *Client) createContainer(ctx context.Context, containerName string, containerConfig *container.Config, hostConfig *container.HostConfig) (id string, err error) {
 	resp, err := c.Conn.ContainerCreate(ctx, containerConfig, hostConfig, nil, nil, containerName)
 	if err != nil {
@@ -143,7 +143,7 @@ func (c *Client) createContainer(ctx context.Context, containerName string, cont
 	return resp.ID, nil
 }
 
-// containerGetLogs returns the logs of a container
+// containerGetLogs returns the logs of a container.
 func (c *Client) containerGetLogs(ctx context.Context, containerID string, options types.ContainerLogsOptions) (string, error) {
 	reader, err := c.Conn.ContainerLogs(ctx, containerID, options)
 	if err != nil {
@@ -157,7 +157,7 @@ func (c *Client) containerGetLogs(ctx context.Context, containerID string, optio
 }
 
 // containerExecComplete checks if a container run has completed or not. completed is defined as having an "exited" or "dead" status.
-// see types.ContainerJSON.State.Status for all status options
+// see types.ContainerJSON.State.Status for all status options.
 func (c *Client) containerExecComplete(ctx context.Context, containerID string) (complete bool, details types.ContainerJSON, err error) {
 	detail, err := c.Conn.ContainerInspect(ctx, containerID)
 	if err != nil {

@@ -15,20 +15,20 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Controller
+// Controller.
 type Controller struct {
 	WorkflowClient workflow.WorkflowServiceClient
 	HardwareClient hardware.HardwareServiceClient
 	Backend        Runner
 }
 
-// Runner interface what backend implementations must define
+// Runner interface what backend implementations must define.
 type Runner interface {
 	EnvironmentRunner
 	ContainerRunner
 }
 
-// EnvironmentRunner is for preparing an environment for running workflow task actions
+// EnvironmentRunner is for preparing an environment for running workflow task actions.
 type EnvironmentRunner interface {
 	// PrepareEnv should do things like create namespaces, configs, secrets, etc
 	PrepareEnv(ctx context.Context, id string) error
@@ -36,7 +36,7 @@ type EnvironmentRunner interface {
 	CleanEnv(ctx context.Context) error
 }
 
-// ContainerRunner defines the methods needed to run a workflow task action
+// ContainerRunner defines the methods needed to run a workflow task action.
 type ContainerRunner interface {
 	// Prepare should create (not run) any containers/pods, setup the environment, mounts, etc
 	Prepare(ctx context.Context, imageName string) (id string, err error)
@@ -63,7 +63,7 @@ func (c Controller) GetHardwareID(ctx context.Context, log logr.Logger, identifi
 }
 
 func (c Controller) doGetHardwareID(ctx context.Context, log logr.Logger, identifier string) string {
-	var wait int = 3
+	wait := 3
 	waitTime := time.Duration(wait) * time.Second
 	for {
 		select {
@@ -83,7 +83,7 @@ func (c Controller) doGetHardwareID(ctx context.Context, log logr.Logger, identi
 	}
 }
 
-// Start the control loop and waits for a context cancel/done to return
+// Start the control loop and waits for a context cancel/done to return.
 func (c Controller) Start(ctx context.Context, log logr.Logger, id string) {
 	var controllerWg sync.WaitGroup
 	controllerWg.Add(1)
@@ -124,12 +124,12 @@ func (c Controller) run(ctx context.Context, log logr.Logger, workerID string, s
 	}
 }
 
-// actionFlow is the lifecycle of an action, business/domain logic for executing an action
+// actionFlow is the lifecycle of an action, business/domain logic for executing an action.
 func actionFlow(ctx context.Context, client ContainerRunner, action *workflow.WorkflowAction, imageName, workflowID string) error {
 	// 1. Set the action data
 	client.SetActionData(ctx, workflowID, action)
 	// 2. Removal of environment (containers, etc)
-	defer client.Destroy(ctx) // nolint
+	defer client.Destroy(ctx) // nolint: errcheck // handle error?
 	// 3. Prepare to run the action
 	id, err := client.Prepare(ctx, imageName)
 	if err != nil {
@@ -139,7 +139,7 @@ func actionFlow(ctx context.Context, client ContainerRunner, action *workflow.Wo
 	return client.Run(ctx, id)
 }
 
-// execWorkflows runs each workflow task in the slice of workflowIDs
+// execWorkflows runs each workflow task in the slice of workflowIDs.
 func (c Controller) execWorkflows(ctx context.Context, log logr.Logger, workflowIDs []*workflow.WorkflowContext, workerID string) {
 	// 1a. for each workflow, get the associated actions based on workerID and execute them
 	// if the workflowIDs is an empty slice try again later, ie. continue loop

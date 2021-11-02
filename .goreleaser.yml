@@ -18,43 +18,43 @@ archives:
       386: i386
       amd64: x86_64
 checksum:
-  name_template: 'checksums.txt'
+  name_template: "checksums.txt"
 snapshot:
   name_template: "{{ .Tag }}-next"
 changelog:
   sort: asc
   filters:
     exclude:
-      - '^docs:'
-      - '^test:'
+      - "^docs:"
+      - "^test:"
 dockers:
-- image_templates:
-  - "ghcr.io/jacobweinstock/tinklet:{{ .Version }}-amd64"
-  use_buildx: true
-  dockerfile: Dockerfile.goreleaser
-  build_flag_templates:
-  - "--pull"
-  - "--label=org.opencontainers.image.created={{.Date}}"
-  - "--label=org.opencontainers.image.name={{.ProjectName}}"
-  - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-  - "--label=org.opencontainers.image.version={{.Version}}"
-  - "--label=org.opencontainers.image.source={{.GitURL}}"
-  - "--platform=linux/amd64"
-- image_templates:
-  - "ghcr.io/jacobweinstock/tinklet:{{ .Version }}-arm64"
-  use_buildx: true
-  goarch: arm64
-  dockerfile: Dockerfile.goreleaser
-  build_flag_templates:
-  - "--pull"
-  - "--label=org.opencontainers.image.created={{.Date}}"
-  - "--label=org.opencontainers.image.name={{.ProjectName}}"
-  - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-  - "--label=org.opencontainers.image.version={{.Version}}"
-  - "--label=org.opencontainers.image.source={{.GitURL}}"
-  - "--platform=linux/arm64"
+  - image_templates:
+      - "ghcr.io/jacobweinstock/tinklet:{{ .Version }}-amd64"
+    use_buildx: true
+    dockerfile: Dockerfile.goreleaser
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.name={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.source={{.GitURL}}"
+      - "--platform=linux/amd64"
+  - image_templates:
+      - "ghcr.io/jacobweinstock/tinklet:{{ .Version }}-arm64"
+    use_buildx: true
+    goarch: arm64
+    dockerfile: Dockerfile.goreleaser
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.name={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.source={{.GitURL}}"
+      - "--platform=linux/arm64"
 docker_manifests:
-- name_template: ghcr.io/jacobweinstock/tinklet:{{ .Version }}
-  image_templates:
-  - ghcr.io/jacobweinstock/tinklet:{{ .Version }}-amd64
-  - ghcr.io/jacobweinstock/tinklet:{{ .Version }}-arm64
+  - name_template: ghcr.io/jacobweinstock/tinklet:{{ .Version }}
+    image_templates:
+      - ghcr.io/jacobweinstock/tinklet:{{ .Version }}-amd64
+      - ghcr.io/jacobweinstock/tinklet:{{ .Version }}-arm64

@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// TimeoutError time out errors
+// TimeoutError time out errors.
 type TimeoutError struct {
 	TimeoutValue time.Duration
 }

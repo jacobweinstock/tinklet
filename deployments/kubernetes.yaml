@@ -7,8 +7,8 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
- name: tinklet-sa
- namespace: tinklet
+  name: tinklet-sa
+  namespace: tinklet
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -28,21 +28,21 @@ spec:
         app: tinklet
     spec:
       hostAliases:
-      - ip: "192.168.1.34"
-        hostnames:
-        - "tinkerbell.tinkerbell"
+        - ip: "192.168.1.34"
+          hostnames:
+            - "tinkerbell.tinkerbell"
       serviceAccountName: tinklet-sa
       containers:
         - name: tinklet
           image: ghcr.io/jacobweinstock/tinklet:v0.2.0
           args: ["kube"]
           env:
-          - name: TINKLET_ID
-            value: "08:00:27:00:00:01"
-          - name: TINKLET_TINK
-            value: "tinkerbell.tinkerbell:42113"
-          - name: TINKLET_TLS
-            value: http://tinkerbell.tinkerbell:42114/cert
+            - name: TINKLET_ID
+              value: "08:00:27:00:00:01"
+            - name: TINKLET_TINK
+              value: "tinkerbell.tinkerbell:42113"
+            - name: TINKLET_TLS
+              value: http://tinkerbell.tinkerbell:42114/cert
           resources:
             limits:
               memory: "128Mi"
@@ -54,9 +54,9 @@ metadata:
   name: tinklet-create-jobs
   namespace: tinklet
 rules:
-- apiGroups: ["", "batch"]
-  resources: ["pods", "jobs", "secrets", "namespaces"]
-  verbs: ["list", "get", "create", "delete", "update", "watch", "patch"]
+  - apiGroups: ["", "batch"]
+    resources: ["pods", "jobs", "secrets", "namespaces"]
+    verbs: ["list", "get", "create", "delete", "update", "watch", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -64,10 +64,10 @@ metadata:
   name: tinklet-create-jobs
   namespace: tinklet
 subjects:
-- kind: ServiceAccount
-  name: tinklet-sa
-  namespace: tinklet
-  apiGroup: ""
+  - kind: ServiceAccount
+    name: tinklet-sa
+    namespace: tinklet
+    apiGroup: ""
 roleRef:
   kind: Role
   name: tinklet-create-jobs

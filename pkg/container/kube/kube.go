@@ -19,7 +19,7 @@ import (
 	watchtools "k8s.io/client-go/tools/watch"
 )
 
-// Client for communicating with kubernetes
+// Client for communicating with kubernetes.
 type Client struct {
 	Conn                     kubernetes.Interface
 	RegistryAuth             map[string]string
@@ -31,7 +31,7 @@ type Client struct {
 	workflowID               string
 }
 
-func (c *Client) SetActionData(ctx context.Context, workflowID string, action *workflow.WorkflowAction) {
+func (c *Client) SetActionData(_ context.Context, workflowID string, action *workflow.WorkflowAction) {
 	c.action = action
 	c.workflowID = workflowID
 }
@@ -102,7 +102,7 @@ func (c *Client) CleanEnv(ctx context.Context) error {
 	if c.taskNamespaceIsEphemeral {
 		defer func() { c.taskNamespace = "" }()
 		// no grace period; delete now
-		var gracePeriod int64 = 0
+		var gracePeriod int64
 		// delete all descended in the foreground
 		// policy := metav1.DeletePropagationForeground
 		return c.Conn.CoreV1().Namespaces().Delete(ctx, c.taskNamespace, metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod /*PropagationPolicy: &policy*/})
@@ -138,7 +138,7 @@ func (c *Client) Prepare(ctx context.Context, imageName string) (id string, err 
 
 func (c *Client) Destroy(ctx context.Context) error {
 	// no grace period; delete now
-	var gracePeriod int64 = 0
+	var gracePeriod int64
 	// delete all descended in the foreground
 	policy := metav1.DeletePropagationForeground
 	deleteOpts := metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod, PropagationPolicy: &policy}
@@ -160,8 +160,8 @@ func (c *Client) Destroy(ctx context.Context) error {
 	return errs
 }
 
-// Run the action; wait for complete
-func (c *Client) Run(ctx context.Context, id string) error {
+// Run the action; wait for complete.
+func (c *Client) Run(ctx context.Context, _ string) error {
 	// 1. start the job; set parallelism to 1
 	spec := *c.jobSpec
 	var parallelism int32 = 1
@@ -178,7 +178,7 @@ func (c *Client) Run(ctx context.Context, id string) error {
 
 	// 2. wait for job via its pod completion, with timeout
 	return c.waitFor(ctx, func(e watch.Event) (bool, error) {
-		switch e.Type { // nolint
+		switch e.Type { // nolint: exhaustive // TODO: add more events and/or use a default
 		case watch.Added, watch.Modified:
 			pod, ok := e.Object.(*v1.Pod)
 			if !ok {
@@ -236,7 +236,7 @@ func (c *Client) createImagePullSecret(ctx context.Context, namespace string, se
 }
 */
 
-// createJob creates a kubernetes job
+// createJob creates a kubernetes job.
 func (c *Client) createJob(ctx context.Context, namespace, jobName, image string, cmd []string, labels map[string]string, imagePullSecretName string, startImmediately bool) (*batchv1.Job, error) {
 	var parallelism *int32
 	if startImmediately {

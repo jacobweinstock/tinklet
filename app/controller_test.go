@@ -70,34 +70,34 @@ type runnerMock struct {
 	prepareError error
 }
 
-func (r *runnerMock) PrepareEnv(ctx context.Context, id string) error {
+func (r *runnerMock) PrepareEnv(_ context.Context, _ string) error {
 	return nil
 }
 
-func (r *runnerMock) CleanEnv(ctx context.Context) error {
+func (r *runnerMock) CleanEnv(_ context.Context) error {
 	return nil
 }
 
-// Prepare should create (not run) any containers/pods, setup the environment, mounts, etc
-func (r *runnerMock) Prepare(ctx context.Context, imageName string) (id string, err error) {
+// Prepare should create (not run) any containers/pods, setup the environment, mounts, etc.
+func (r *runnerMock) Prepare(_ context.Context, _ string) (id string, err error) {
 	if r.prepareError != nil {
 		return "", r.prepareError
 	}
 	return "", nil
 }
 
-// Run should execution the action and wait for completion
-func (r *runnerMock) Run(ctx context.Context, id string) error {
+// Run should execution the action and wait for completion.
+func (r *runnerMock) Run(_ context.Context, _ string) error {
 	return nil
 }
 
-// Destroy should handle removing all things created/setup in Prepare
-func (r *runnerMock) Destroy(ctx context.Context) error {
+// Destroy should handle removing all things created/setup in Prepare.
+func (r *runnerMock) Destroy(_ context.Context) error {
 	return nil
 }
 
-// SetActionData gets the action data into the implementation
-func (r *runnerMock) SetActionData(ctx context.Context, workflowID string, action *workflow.WorkflowAction) {
+// SetActionData gets the action data into the implementation.
+func (r *runnerMock) SetActionData(_ context.Context, _ string, _ *workflow.WorkflowAction) {
 }
 
 type hardwareServerMock struct{}
@@ -224,7 +224,8 @@ func captureOutput(f func()) []string {
 		output = append(output, scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
+		log.Println(err.Error())
+		return nil
 	}
 	os.Stdout = rescueStdout
 

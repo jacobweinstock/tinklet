@@ -273,7 +273,7 @@ func TestWorkflowContexts(t *testing.T) {
 	var wks []*workflow.WorkflowContext
 	for {
 		aWorkflow, recvErr := c.Recv()
-		if recvErr == io.EOF {
+		if errors.Is(recvErr, io.EOF) {
 			break
 		}
 		if recvErr != nil {

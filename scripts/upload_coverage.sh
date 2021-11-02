@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2116
 # this script must be run from the root of the tinklet repo
 # this script must be run after a `make test-ci`
 set -ex
 
 file_totals=$(cat test.output)
 out=$(go tool cover -func=cover.out)
-percentage=$(echo ${out} | grep total | awk '{print $NF}')
+percentage=$(echo "${out}" | grep total | awk '{print $NF}')
 date_time=$(date -u)
 fullOut=$(echo "${date_time}
 ====================================================================================================
@@ -36,10 +37,10 @@ else
 fi
 
 coverageJSON='{"schemaVersion":1, "label":"Code Coverage", "message":"'${percentage}'", "color":"'${coverageColor}'"}'
-echo ${coverageJSON}
+echo "${coverageJSON}"
 
 # this updates the following GIST: https://gist.github.com/jacobweinstock/9d00cc54b39121e62d88ab6e02cec6dd#file-branch-main-json
-(cd scripts/code_coverage && go run main.go -accesstoken ${GIST_TOKEN} -filename branch-main.json -id 9d00cc54b39121e62d88ab6e02cec6dd -content "${coverageJSON}")
+(cd scripts/code_coverage && go run main.go -accesstoken "${GIST_TOKEN}" -filename branch-main.json -id 9d00cc54b39121e62d88ab6e02cec6dd -content "${coverageJSON}")
 
 # this updates the following GIST: https://gist.github.com/jacobweinstock/9d00cc54b39121e62d88ab6e02cec6dd#file-branch-main-coverage
-(cd scripts/code_coverage && go run main.go -accesstoken ${GIST_TOKEN} -filename branch-main.coverage -id 9d00cc54b39121e62d88ab6e02cec6dd -content "${fullOut}")
+(cd scripts/code_coverage && go run main.go -accesstoken "${GIST_TOKEN}" -filename branch-main.coverage -id 9d00cc54b39121e62d88ab6e02cec6dd -content "${fullOut}")

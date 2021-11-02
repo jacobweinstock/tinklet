@@ -19,3 +19,5 @@ tink.cert
 tls/
 dist/
 test.output
+# added by lint-install
+out/

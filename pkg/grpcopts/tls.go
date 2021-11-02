@@ -22,7 +22,7 @@ const (
 	schemeHTTPS = "https"
 )
 
-// toCreds takes a byte string, assumed to be a tls cert, and creates a transport credential
+// toCreds takes a byte string, assumed to be a tls cert, and creates a transport credential.
 func toCreds(pemCerts []byte) credentials.TransportCredentials {
 	cp := x509.NewCertPool()
 	ok := cp.AppendCertsFromPEM(pemCerts)
@@ -41,7 +41,7 @@ func toCreds(pemCerts []byte) credentials.TransportCredentials {
 
 // loadTLSFromHTTP handles reading a cert from an HTTP endpoint and forming a TLS grpc.DialOption
 
-// LoadTLSFromValue is the logic for how/from where TLS should be loaded
+// LoadTLSFromValue is the logic for how/from where TLS should be loaded.
 func LoadTLSFromValue(tlsVal string) (grpc.DialOption, error) {
 	u, err := url.Parse(tlsVal)
 	if err != nil {
@@ -71,7 +71,7 @@ func LoadTLSFromValue(tlsVal string) (grpc.DialOption, error) {
 		return grpc.WithTransportCredentials(toCreds(data)), nil
 	case schemeHTTP, schemeHTTPS:
 		// 4. the server has a self-signed cert and the cert needs to be grabbed from a URL -
-		resp, err := http.Get(tlsVal) // nolint
+		resp, err := http.Get(tlsVal) // nolint:noctx // TODO: use context
 		if err != nil {
 			return nil, err
 		}
