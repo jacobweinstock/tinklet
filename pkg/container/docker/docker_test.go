@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
+	"github.com/tinkerbell/tink/protos/workflow"
 )
 
 type mockClient struct {
@@ -30,6 +32,7 @@ type clientMockHelper struct {
 	mockContainerCreate
 	mockContainerInspect
 	mockContainerLogs
+	mockContainerStart
 }
 
 type mockContainerCreate struct {
@@ -49,6 +52,10 @@ type mockContainerLogs struct {
 	logsErr        error
 }
 
+type mockContainerStart struct {
+	startErr error
+}
+
 func (t *mockClient) ImagePull(ctx context.Context, ref string, options types.ImagePullOptions) (io.ReadCloser, error) {
 	return t.mock.stringReadCloser, t.mock.imagePullErr
 }
@@ -63,6 +70,10 @@ func (t *mockClient) ContainerInspect(ctx context.Context, container string) (ty
 
 func (t *mockClient) ContainerLogs(ctx context.Context, container string, options types.ContainerLogsOptions) (io.ReadCloser, error) {
 	return t.mock.logsReadCloser, t.mock.logsErr
+}
+
+func (t *mockClient) ContainerStart(ctx context.Context, container string, options types.ContainerStartOptions) error {
+	return t.mock.startErr
 }
 
 func TestActualPull(t *testing.T) {
@@ -276,6 +287,166 @@ func TestPullImage(t *testing.T) {
 					if diff := cmp.Diff(err.Error(), tc.testErr.Error()); diff != "" {
 						t.Fatal(diff)
 					}
+				}
+			}
+		})
+	}
+}
+
+func TestGetRegistryAuth(t *testing.T) {
+	type args struct {
+		regAuth   map[string]string
+		imageName string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{name: "auth found", args: args{regAuth: map[string]string{"registry.com": "auth"}, imageName: "registry.com/image"}, want: "auth"},
+		{name: "auth not found", args: args{regAuth: map[string]string{"registry.com": "auth"}, imageName: "registry2.com/image:tag"}, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getRegistryAuth(tt.args.regAuth, tt.args.imageName); got != tt.want {
+				t.Errorf("getRegistryAuth() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPrepareEnv(t *testing.T) {
+	c := &Client{}
+	if err := c.PrepareEnv(context.Background(), "n/a"); err != nil {
+		t.Fatalf("error should be nil, got: %v", err)
+	}
+}
+
+func TestCleanEnv(t *testing.T) {
+	c := &Client{}
+	if err := c.CleanEnv(context.Background()); err != nil {
+		t.Fatalf("error should be nil, got: %v", err)
+	}
+}
+
+func TestSetActionData(t *testing.T) {
+	c := &Client{}
+	a := &workflow.WorkflowAction{TaskName: "mything"}
+	wID := "1234"
+	c.SetActionData(context.Background(), wID, a)
+	if c.action != a {
+		t.Fatalf("action should be: %v", a)
+	}
+	if c.workflowID != wID {
+		t.Fatalf("workflowID should be: %v", wID)
+	}
+}
+
+func TestPrepare(t *testing.T) {
+	t.Skip("not implemented")
+	helper := clientMockHelper{
+		imagePullErr:     nil,
+		stringReadCloser: io.NopCloser(strings.NewReader(`{"status":"hello","error":""}{"status":"world","error":""}`)),
+		mockContainerCreate: mockContainerCreate{
+			createID:       "1234",
+			createErr:      nil,
+			createWarnings: []string{},
+		},
+	}
+	mClient := mockClient{mock: helper}
+	c := &Client{Conn: &mClient, action: &workflow.WorkflowAction{Name: "mything"}}
+	id := "test"
+	i, err := c.Prepare(context.Background(), id)
+	if err != nil {
+		t.Fatalf("error should be nil, got: %v", err)
+	}
+	if i != "1234" {
+		t.Fatalf("containerID should be: %v", "1234")
+	}
+}
+
+func TestClient_Prepare(t *testing.T) {
+	tests := []struct {
+		name      string
+		createID  string
+		createErr error
+		pullErr   error
+	}{
+		{name: "success", createID: "1234", createErr: nil, pullErr: nil},
+		{name: "fail", createID: "", createErr: errors.New("create error"), pullErr: nil},
+		{name: "fail_pull", createID: "", createErr: nil, pullErr: errors.New("pull error")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			helper := clientMockHelper{
+				imagePullErr:     tt.pullErr,
+				stringReadCloser: io.NopCloser(strings.NewReader(`{"status":"hello","error":""}{"status":"world","error":""}`)),
+				mockContainerCreate: mockContainerCreate{
+					createID:       tt.createID,
+					createErr:      tt.createErr,
+					createWarnings: []string{},
+				},
+			}
+			mClient := mockClient{mock: helper}
+			c := &Client{Conn: &mClient, action: &workflow.WorkflowAction{Name: "mything"}}
+			i, err := c.Prepare(context.Background(), "test")
+			if err != nil {
+				if tt.createErr != nil {
+					if diff := cmp.Diff(err.Error(), tt.createErr.Error()); diff != "" {
+						t.Fatal(diff)
+					}
+				} else if tt.pullErr != nil {
+					if diff := cmp.Diff(err.Error(), fmt.Errorf("error pulling image: test: %v", tt.pullErr.Error()).Error()); diff != "" {
+						t.Fatal(diff)
+					}
+				} else {
+					t.Fatalf("error should be nil, got: %v", err)
+				}
+			}
+			if i != tt.createID {
+				t.Fatalf("containerID should be: %v", "1234")
+			}
+		})
+	}
+}
+
+func TestClient_Run(t *testing.T) {
+	tests := []struct {
+		name       string
+		startErr   error
+		timeoutErr error
+	}{
+		{name: "container start error", startErr: fmt.Errorf("could not start container")},
+		{name: "timeout err", startErr: nil, timeoutErr: fmt.Errorf("timeout reached: 2s")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			helper := clientMockHelper{
+				mockContainerStart: mockContainerStart{
+					startErr: tt.startErr,
+				},
+				mockContainerInspect: mockContainerInspect{
+					inspectErr: nil,
+					inspectID:  "1234",
+					inspectState: &types.ContainerState{
+						Status: "running",
+					},
+				},
+			}
+			mClient := mockClient{mock: helper}
+			c := &Client{Conn: &mClient, action: &workflow.WorkflowAction{Name: "mything", Timeout: 2}}
+			err := c.Run(context.Background(), "12345")
+			if err != nil {
+				if tt.startErr != nil {
+					if diff := cmp.Diff(err.Error(), tt.startErr.Error()); diff != "" {
+						t.Fatal(diff)
+					}
+				} else if tt.timeoutErr != nil {
+					if diff := cmp.Diff(err.Error(), tt.timeoutErr.Error()); diff != "" {
+						t.Fatal(diff)
+					}
+				} else {
+					t.Fatalf("error should be nil, got: %v", err)
 				}
 			}
 		})
